@@ -360,10 +360,14 @@ package body Vhdl.Tokens is
             return "cover";
          when Tok_Default =>
             return "default";
+         when Tok_Force =>
+            return "force";
          when Tok_Parameter =>
             return "parameter";
          when Tok_Property =>
             return "property";
+         when Tok_Release =>
+            return "release";
          when Tok_Restrict =>
             return "restrict";
          when Tok_Restrict_Guarantee =>
@@ -405,6 +409,7 @@ package body Vhdl.Tokens is
          when Tok_Tolerance =>
             return "tolerance";
 
+         --  PSL operators
          when Tok_And_And =>
             return "&&";
          when Tok_Bar_Bar =>
@@ -429,11 +434,22 @@ package body Vhdl.Tokens is
             return "|=>";
          when Tok_Minus_Greater =>
             return "->";
+         when Tok_Equiv_Arrow =>
+            return "<->";
          when Tok_Arobase =>
             return "@";
 
+         --  PSL keywords
          when Tok_Psl_Clock =>
             return "clock";
+         when Tok_Fell =>
+            return "fell";
+         when Tok_Rose =>
+            return "rose";
+         when Tok_Stable =>
+            return "stable";
+         when Tok_Prev =>
+            return "prev";
          when Tok_Psl_Endpoint =>
             return "endpoint";
          when Tok_Psl_Const =>

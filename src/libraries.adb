@@ -53,6 +53,20 @@ package body Libraries is
       Report_Msg (Msgid_Error, Library, No_Source_Coord, Msg);
    end Error_Lib_Msg;
 
+   procedure Create_Virtual_Locations
+   is
+      use Files_Map;
+      Library_Source_File : Source_File_Entry;
+      Command_Source_File : Source_File_Entry;
+   begin
+      Library_Source_File := Create_Virtual_Source_File
+        (Get_Identifier ("*libraries*"));
+      Command_Source_File := Create_Virtual_Source_File
+        (Get_Identifier ("*command line*"));
+      Command_Line_Location := File_To_Location (Command_Source_File);
+      Library_Location := File_To_Location (Library_Source_File);
+   end Create_Virtual_Locations;
+
    --  Initialize paths table.
    --  Set the local path.
    procedure Init_Paths is
@@ -63,6 +77,8 @@ package body Libraries is
 
       Local_Directory := Name_Nil;
       Work_Directory := Name_Nil;
+
+      Create_Virtual_Locations;
    end Init_Paths;
 
    function Path_To_Id (Path : String) return Name_Id is
@@ -108,7 +124,7 @@ package body Libraries is
       case Vhdl_Std is
          when Vhdl_87 =>
             return Image_Identifier (Library) & "-obj87.cf";
-         when Vhdl_93c | Vhdl_93 | Vhdl_00 | Vhdl_02 =>
+         when Vhdl_93 | Vhdl_00 | Vhdl_02 =>
             return Image_Identifier (Library) & "-obj93.cf";
          when Vhdl_08 =>
             return Image_Identifier (Library) & "-obj08.cf";
@@ -150,7 +166,7 @@ package body Libraries is
             case Vhdl_Std is
                when Vhdl_87 =>
                   Path (L + 2 .. L + 4) := "v87";
-               when Vhdl_93c | Vhdl_93 | Vhdl_00 | Vhdl_02 =>
+               when Vhdl_93 | Vhdl_00 | Vhdl_02 =>
                   Path (L + 2 .. L + 4) := "v93";
                when Vhdl_08 =>
                   Path (L + 2 .. L + 4) := "v08";
@@ -613,20 +629,6 @@ package body Libraries is
       return True;
    end Load_Library;
 
-   procedure Create_Virtual_Locations
-   is
-      use Files_Map;
-      Library_Source_File : Source_File_Entry;
-      Command_Source_File : Source_File_Entry;
-   begin
-      Library_Source_File := Create_Virtual_Source_File
-        (Get_Identifier ("*libraries*"));
-      Command_Source_File := Create_Virtual_Source_File
-        (Get_Identifier ("*command line*"));
-      Command_Line_Location := File_To_Location (Command_Source_File);
-      Library_Location := File_To_Location (Library_Source_File);
-   end Create_Virtual_Locations;
-
    -- Note: the scanner shouldn't be in use, since this procedure uses it.
    procedure Load_Std_Library (Build_Standard : Boolean := True)
    is
@@ -639,7 +641,6 @@ package body Libraries is
       end if;
 
       Flags.Create_Flag_String;
-      Create_Virtual_Locations;
 
       Vhdl.Std_Package.Create_First_Nodes;
 
@@ -1647,18 +1648,17 @@ package body Libraries is
       return Libraries_Chain;
    end Get_Libraries_Chain;
 
-   function Decode_Work_Option (Opt : String) return Boolean
+   function Decode_Work_Option (Opt : String) return Name_Id
    is
-      pragma Assert (Opt'First = 1);
-      Name : String (1 .. Opt'Last - 8 + 1);
+      Name : String (Opt'First + 7 .. Opt'Last);
       Err : Boolean;
    begin
-      Name := Opt (8 .. Opt'Last);
+      Name := Opt (Opt'First + 7 .. Opt'Last);
       Vhdl.Scanner.Convert_Identifier (Name, Err);
       if Err then
-         return False;
+         return Null_Identifier;
       end if;
-      Libraries.Work_Library_Name := Get_Identifier (Name);
-      return True;
+      return Get_Identifier (Name);
+      -- Libraries.Work_Library_Name :=
    end Decode_Work_Option;
 end Libraries;

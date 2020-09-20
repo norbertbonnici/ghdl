@@ -118,7 +118,7 @@ package body Vhdl.Parse is
       Error_Msg_Parse ("unexpected token %t in a " & Where, +Current_Token);
    end Unexpected;
 
-   procedure Expect_Error (Token: Token_Type; Msg: String)
+   procedure Expect_Error (Token: Token_Type; Msg: String := "")
    is
       Loc : Location_Type;
    begin
@@ -141,7 +141,7 @@ package body Vhdl.Parse is
                           (+Token, +Current_Identifier));
       else
          Error_Msg_Parse
-           (Loc, "%t is expected instead of %t", (+Token, + Current_Token));
+           (Loc, "%t is expected instead of %t", (+Token, +Current_Token));
       end if;
    end Expect_Error;
 
@@ -208,6 +208,28 @@ package body Vhdl.Parse is
       Check_End_Name (Get_Identifier (Decl), Decl);
    end Check_End_Name;
 
+   --  Skip the reserved identifier after 'end'.
+   procedure Scan_End_Token (Tok : Token_Type; Decl : Iir) is
+   begin
+      if Current_Token /= Tok then
+         Error_Msg_Parse ("""end"" must be followed by %t", +Tok);
+         case Current_Token is
+            when Tok_If
+              | Tok_Loop
+              | Tok_Case
+              | Tok_Process =>
+               --  Mismatching token.
+               Scan;
+            when others =>
+               null;
+         end case;
+      else
+         Set_End_Has_Reserved_Id (Decl, True);
+
+         --  Skip tok.
+         Scan;
+      end if;
+   end Scan_End_Token;
 
    --  Expect ' END tok [ name ] ; '
    procedure Check_End_Name (Tok : Token_Type; Decl : Iir) is
@@ -215,13 +237,11 @@ package body Vhdl.Parse is
       if Current_Token /= Tok_End then
          Error_Msg_Parse ("""end " & Image (Tok) & ";"" expected");
       else
+         --  Skip 'end'.
          Scan;
-         if Current_Token /= Tok then
-            Error_Msg_Parse ("""end"" must be followed by %t", +Tok);
-         else
-            Set_End_Has_Reserved_Id (Decl, True);
-            Scan;
-         end if;
+
+         Scan_End_Token (Tok, Decl);
+
          Check_End_Name (Decl);
       end if;
    end Check_End_Name;
@@ -248,6 +268,8 @@ package body Vhdl.Parse is
               | Tok_End =>
                exit;
             when Tok_If
+              | Tok_Else
+              | Tok_Case
               | Tok_For
               | Tok_While
               | Tok_Loop
@@ -575,9 +597,9 @@ package body Vhdl.Parse is
 
       case Current_Token is
          when Tok_To =>
-            Set_Direction (Res, Iir_To);
+            Set_Direction (Res, Dir_To);
          when Tok_Downto =>
-            Set_Direction (Res, Iir_Downto);
+            Set_Direction (Res, Dir_Downto);
          when others =>
             raise Internal_Error;
       end case;
@@ -950,19 +972,21 @@ package body Vhdl.Parse is
       Res : Iir;
    begin
       case Current_Token is
-         when Tok_Range | Tok_Identifier =>
+         when Tok_Range
+            | Tok_Identifier
+            | Tok_Stable =>
+            --  Tok_Stable is possible within PSL expressions.
             null;
          when Tok_Across
-           | Tok_Through
-           | Tok_Reference
-           | Tok_Tolerance =>
+            | Tok_Through
+            | Tok_Reference
+            | Tok_Tolerance =>
             --  AMS reserved words.
             null;
          when Tok_Subtype =>
             if Vhdl_Std < Vhdl_08 then
                Error_Msg_Parse
                  ("'subtype attribute is not allowed before vhdl08");
-               return Null_Iir;
             end if;
          when others =>
             return Null_Iir;
@@ -1438,17 +1462,18 @@ package body Vhdl.Parse is
    end Parse_Signature_Name;
 
    --  Emit an error message if MARK doesn't have the form of a type mark.
-   procedure Check_Type_Mark (Mark : Iir) is
+   function Check_Type_Mark (Mark : Iir) return Boolean is
    begin
       case Get_Kind (Mark) is
          when Iir_Kind_Simple_Name
            | Iir_Kind_Selected_Name =>
-            null;
+            return True;
          when Iir_Kind_Attribute_Name =>
             --  For O'Subtype.
-            null;
+            return True;
          when others =>
             Error_Msg_Parse (+Mark, "type mark must be a name of a type");
+            return False;
       end case;
    end Check_Type_Mark;
 
@@ -1466,10 +1491,13 @@ package body Vhdl.Parse is
    begin
       Res := Parse_Name (Allow_Indexes => False);
 
-      Check_Type_Mark (Res);
-      if Check_Paren and then Current_Token = Tok_Left_Paren then
-         Error_Msg_Parse ("index constraint not allowed here");
-         Old := Parse_Name_Suffix (Res, True);
+      if Check_Type_Mark (Res) then
+         if Check_Paren and then Current_Token = Tok_Left_Paren then
+            Error_Msg_Parse ("index constraint not allowed here");
+            Old := Parse_Name_Suffix (Res, True);
+         end if;
+      else
+         Res := Null_Iir;
       end if;
       return Res;
    end Parse_Type_Mark;
@@ -3262,8 +3290,12 @@ package body Vhdl.Parse is
 
       if Name /= Null_Iir then
          --  The type_mark was already parsed.
-         Type_Mark := Name;
-         Check_Type_Mark (Name);
+         if Check_Type_Mark (Name) then
+            Type_Mark := Name;
+         else
+            --  Not a type mark.  Ignore it.
+            Type_Mark := Null_Iir;
+         end if;
       else
          if Current_Token = Tok_Left_Paren then
             if Vhdl_Std < Vhdl_08 then
@@ -4168,7 +4200,9 @@ package body Vhdl.Parse is
 
             case Current_Token is
                when Tok_In | Tok_Out | Tok_Inout =>
-                  if Flags.Vhdl_Std >= Vhdl_93 then
+                  if Flags.Vhdl_Std /= Vhdl_87
+                    and then not Flags.Flag_Relaxed_Files87
+                  then
                      Error_Msg_Parse ("mode allowed only in vhdl 87");
                   end if;
                   Mode := Parse_Mode;
@@ -5413,9 +5447,10 @@ package body Vhdl.Parse is
                   Error_Msg_Parse
                     ("PSL default clock declaration not allowed here");
                when Iir_Kind_Entity_Declaration
-                 | Iir_Kind_Architecture_Body
-                 | Iir_Kind_Block_Statement
-                 | Iir_Kind_Generate_Statement_Body =>
+                  | Iir_Kind_Architecture_Body
+                  | Iir_Kind_Block_Statement
+                  | Iir_Kind_Generate_Statement_Body
+                  | Iir_Kinds_Verification_Unit =>
                   null;
                when others =>
                   Error_Kind ("parse_declaration(7)", Parent);
@@ -5427,6 +5462,9 @@ package body Vhdl.Parse is
             Resync_To_End_Of_Declaration;
          when Tok_Semi_Colon =>
             Error_Msg_Parse ("';' (semi colon) not allowed alone");
+            Scan;
+         when Tok_Is =>
+            Error_Msg_Parse ("duplicate 'is' in declarative part");
             Scan;
          when others =>
             null;
@@ -5979,6 +6017,53 @@ package body Vhdl.Parse is
       return Res;
    end Parse_Integer_Literal;
 
+   function Parse_PSL_Builtin_Call (Kind : Iir_Kinds_Psl_Builtin) return Iir
+   is
+      Res : Iir;
+      Expr : Iir;
+   begin
+      Res := Create_Iir (Kind);
+      Set_Location (Res);
+
+      --  Skip builtin.
+      Scan;
+
+      Expect_Scan (Tok_Left_Paren);
+
+      Set_Expression (Res, Parse_Expression);
+
+      if Current_Token = Tok_Comma then
+         --  Skip ','.
+         Scan;
+
+         Expr := Parse_Expression;
+         case Kind is
+            when Iir_Kind_Psl_Fell
+               | Iir_Kind_Psl_Rose
+               | Iir_Kind_Psl_Stable =>
+               Set_Clock_Expression (Res, Expr);
+            when Iir_Kind_Psl_Prev =>
+               Set_Count_Expression (Res, Expr);
+         end case;
+      end if;
+
+      if Current_Token = Tok_Comma then
+         --  Skip ','.
+         Scan;
+
+         case Kind is
+            when Iir_Kind_Psl_Prev =>
+               Set_Clock_Expression (Res, Parse_Expression);
+            when others =>
+               Error_Msg_Parse ("too many parameter for PSL builtin");
+         end case;
+      end if;
+
+      Expect_Scan (Tok_Right_Paren);
+
+      return Res;
+   end Parse_PSL_Builtin_Call;
+
    --  precond : next token
    --  postcond: next token
    --
@@ -6133,6 +6218,15 @@ package body Vhdl.Parse is
             Scan;
 
             return Res;
+
+         when Tok_Prev =>
+            return Parse_PSL_Builtin_Call (Iir_Kind_Psl_Prev);
+         when Tok_Stable =>
+            return Parse_PSL_Builtin_Call (Iir_Kind_Psl_Stable);
+         when Tok_Rose =>
+            return Parse_PSL_Builtin_Call (Iir_Kind_Psl_Rose);
+         when Tok_Fell =>
+            return Parse_PSL_Builtin_Call (Iir_Kind_Psl_Fell);
 
          when Tok_Minus
            | Tok_Plus =>
@@ -6718,6 +6812,21 @@ package body Vhdl.Parse is
       return Res;
    end Parse_Concurrent_Conditional_Signal_Assignment;
 
+   --  Like Parse_Expression, but keep parentheses.
+   --  Parentheses are significant in case expressions, because of
+   --  LRM02 8.8 Case Statement.
+   function Parse_Case_Expression return Iir
+   is
+      Prev_Flag : constant Boolean := Flag_Parse_Parenthesis;
+      Res : Iir;
+   begin
+      Flag_Parse_Parenthesis := True;
+      Res := Parse_Expression;
+      Flag_Parse_Parenthesis := Prev_Flag;
+
+      return Res;
+   end Parse_Case_Expression;
+
    --  precond : WITH
    --  postcond: next token
    --
@@ -6744,7 +6853,7 @@ package body Vhdl.Parse is
 
       Res := Create_Iir (Iir_Kind_Concurrent_Selected_Signal_Assignment);
       Set_Location (Res);
-      Set_Expression (Res, Parse_Expression);
+      Set_Expression (Res, Parse_Case_Expression);
 
       Expect_Scan (Tok_Select, "'select' expected after expression");
 
@@ -7141,30 +7250,26 @@ package body Vhdl.Parse is
       return Decl;
    end Parse_Parameter_Specification;
 
-   --  precond:  '<='
+   --  precond:  delay_mechanism or waveform
    --  postcond: next token
    --
    --  [ LRM93 8.4 ]
    --  signal_assignment_statement ::=
-   --      [ label : ] target <= [ delay_mechanism ] waveform ;
+   --    [ label : ] target <= [ delay_mechanism ] waveform ;
    --
    --  [ LRM08 10.5 Signal assignment statement ]
-   --  signal_assignement_statement ::=
-   --      [ label : ] simple_signal_assignement
-   --    | [ label : ] conditional_signal_assignement
-   --    | [ label : ] selected_signal_assignement (TODO)
-   function Parse_Signal_Assignment_Statement (Target : Iir) return Iir
+   --  simple_waveform_assignment ::=
+   --    target <= [ delay_mechanism ] waveform ;
+   function Parse_Signal_Waveform_Assignment
+     (Target : Iir; Loc : Location_Type) return Iir
    is
       Stmt : Iir;
       N_Stmt : Iir;
       Wave_Chain : Iir;
    begin
       Stmt := Create_Iir (Iir_Kind_Simple_Signal_Assignment_Statement);
-      Set_Location (Stmt);
+      Set_Location (Stmt, Loc);
       Set_Target (Stmt, Target);
-
-      --  Skip '<='.
-      Scan;
 
       Parse_Delay_Mechanism (Stmt);
 
@@ -7199,6 +7304,109 @@ package body Vhdl.Parse is
       end if;
 
       return Stmt;
+   end Parse_Signal_Waveform_Assignment;
+
+   --  precond:  -
+   --  postcond: next token
+   --
+   --  [ LRM08 10.5.2 Simple signal assignments ]
+   --  force_mode ::= IN | OUT
+   procedure Parse_Force_Mode_Opt (Stmt : Iir) is
+   begin
+      case Current_Token is
+         when Tok_In =>
+            Set_Force_Mode (Stmt, Iir_Force_In);
+            Set_Has_Force_Mode (Stmt, True);
+         when Tok_Out =>
+            Set_Force_Mode (Stmt, Iir_Force_Out);
+            Set_Has_Force_Mode (Stmt, True);
+         when others =>
+            null;
+      end case;
+   end Parse_Force_Mode_Opt;
+
+   --  precond:  'force'
+   --  postcond: next token
+   --
+   --  [ LRM08 10.5 Signal assignment statement ]
+   --  simple_force_assignment ::=
+   --    target <= FORCE [ force_mode ] expression ;
+   function Parse_Signal_Force_Assignment
+     (Target : Iir; Loc : Location_Type) return Iir
+   is
+      Stmt : Iir;
+   begin
+      Stmt := Create_Iir (Iir_Kind_Signal_Force_Assignment_Statement);
+      Set_Location (Stmt, Loc);
+      Set_Target (Stmt, Target);
+
+      --  Skip 'force'.
+      Scan;
+
+      Parse_Force_Mode_Opt (Stmt);
+
+      Set_Expression (Stmt, Parse_Expression);
+
+      return Stmt;
+   end Parse_Signal_Force_Assignment;
+
+   --  precond:  'release'
+   --  postcond: next token
+   --
+   --  [ LRM08 10.5 Signal assignment statement ]
+   --  simple_release_assignment ::=
+   --    target <= RELEASE [ force_mode ] expression ;
+   function Parse_Signal_Release_Assignment
+     (Target : Iir; Loc : Location_Type) return Iir
+   is
+      Stmt : Iir;
+   begin
+      Stmt := Create_Iir (Iir_Kind_Signal_Release_Assignment_Statement);
+      Set_Location (Stmt, Loc);
+      Set_Target (Stmt, Target);
+
+      --  Skip 'release'.
+      Scan;
+
+      Parse_Force_Mode_Opt (Stmt);
+
+      return Stmt;
+   end Parse_Signal_Release_Assignment;
+
+   --  precond:  '<='
+   --  postcond: next token
+   --
+   --  [ LRM93 8.4 ]
+   --  signal_assignment_statement ::=
+   --      [ label : ] target <= [ delay_mechanism ] waveform ;
+   --
+   --  [ LRM08 10.5 Signal assignment statement ]
+   --  signal_assignement_statement ::=
+   --      [ label : ] simple_signal_assignement
+   --    | [ label : ] conditional_signal_assignement
+   --    | [ label : ] selected_signal_assignement
+   --
+   --  simple_signal_assignment ::=
+   --      simple_waveform_assignment
+   --    | simple_force_assignment
+   --    | simple_release_assignment
+   function Parse_Signal_Assignment_Statement (Target : Iir) return Iir
+   is
+      Loc : Location_Type;
+   begin
+      Loc := Get_Token_Location;
+
+      --  Skip '<='.
+      Scan;
+
+      case Current_Token is
+         when Tok_Force =>
+            return Parse_Signal_Force_Assignment (Target, Loc);
+         when Tok_Release =>
+            return Parse_Signal_Release_Assignment (Target, Loc);
+         when others =>
+            return Parse_Signal_Waveform_Assignment (Target, Loc);
+      end case;
    end Parse_Signal_Assignment_Statement;
 
    --  precond:  WHEN
@@ -7336,7 +7544,7 @@ package body Vhdl.Parse is
       --  Skip 'case'.
       Scan;
 
-      Set_Expression (Stmt, Parse_Expression);
+      Set_Expression (Stmt, Parse_Case_Expression);
 
       --  Skip 'is'.
       Expect_Scan (Tok_Is);
@@ -7371,7 +7579,7 @@ package body Vhdl.Parse is
       Expect_Scan (Tok_End);
       Expect_Scan (Tok_Case);
 
-      if Flags.Vhdl_Std >= Vhdl_93c then
+      if Flags.Vhdl_Std >= Vhdl_93 then
          Check_End_Name (Stmt);
       end if;
 
@@ -7675,7 +7883,7 @@ package body Vhdl.Parse is
                Stmt := Parse_If_Statement (Parent);
                Set_Label (Stmt, Label);
                Set_Location (Stmt, Loc);
-               if Flags.Vhdl_Std >= Vhdl_93c then
+               if Flags.Vhdl_Std >= Vhdl_93 then
                   Check_End_Name (Stmt);
                end if;
             when Tok_Case =>
@@ -7759,6 +7967,22 @@ package body Vhdl.Parse is
                Scan;
 
                goto Again;
+            when Tok_Constant
+              | Tok_Variable
+              | Tok_Signal
+              | Tok_Alias
+              | Tok_File
+              | Tok_Attribute =>
+               Error_Msg_Parse ("declaration not allowed within statements");
+               Scan;
+               Resync_To_End_Of_Declaration;
+               goto Again;
+
+            when Tok_Begin =>
+               Error_Msg_Parse ("'begin' not allowed within statements");
+               Scan;
+               goto Again;
+
             when others =>
                return First_Stmt;
          end case;
@@ -8031,8 +8255,7 @@ package body Vhdl.Parse is
          Set_Sensitivity_List (Res, Sensitivity_List);
 
          --  Skip ')'
-         Expect (Tok_Right_Paren);
-         Scan;
+         Expect_Scan (Tok_Right_Paren);
       else
          Res := Create_Iir (Iir_Kind_Process_Statement);
       end if;
@@ -8051,7 +8274,7 @@ package body Vhdl.Parse is
          Scan;
       end if;
 
-      -- declarative part.
+      --  Declarative part.
       Parse_Declarative_Part (Res, Res);
 
       --  Skip 'begin'.
@@ -8084,8 +8307,7 @@ package body Vhdl.Parse is
          --  Skip ';'.
          Scan;
       else
-         Expect_Scan (Tok_Process);
-         Set_End_Has_Reserved_Id (Res, True);
+         Scan_End_Token (Tok_Process, Res);
          Check_End_Name (Res);
          Expect_Scan (Tok_Semi_Colon, "';' expected at end of process");
       end if;
@@ -8823,7 +9045,17 @@ package body Vhdl.Parse is
 
          --  Skip 'generate'
          Generate_Loc := Get_Token_Location;
-         Expect_Scan (Tok_Generate);
+         case Current_Token is
+            when Tok_Generate =>
+               --  Skip 'generate'.
+               Scan;
+            when Tok_Then =>
+               Expect_Error (Tok_Generate);
+               --  Skip 'then'.
+               Scan;
+            when others =>
+               Expect_Error (Tok_Generate);
+         end case;
 
          Parse_Generate_Statement_Body (Res, Alt_Label, Bod, End_Loc);
 
@@ -8908,8 +9140,18 @@ package body Vhdl.Parse is
       end if;
 
       --  Skip 'generate'
-      Expect_Scan (Tok_Generate);
-      Set_End_Has_Reserved_Id (Res, True);
+      case Current_Token is
+         when Tok_Generate =>
+            Scan;
+            Set_End_Has_Reserved_Id (Res, True);
+         when Tok_If =>
+            Expect_Error (Tok_Generate);
+            --  Skip 'then'.
+            Scan;
+            Set_End_Has_Reserved_Id (Res, True);
+         when others =>
+            Expect_Error (Tok_Generate);
+      end case;
 
       --  LRM93 9.7
       --  If a label appears at the end of a generate statement, it must repeat
@@ -9009,7 +9251,7 @@ package body Vhdl.Parse is
       --  Skip 'case'.
       Scan;
 
-      Expr := Parse_Expression;
+      Expr := Parse_Case_Expression;
 
       if Current_Token = Tok_Use then
          if not AMS_Vhdl then
@@ -9664,9 +9906,9 @@ package body Vhdl.Parse is
    --                         | component_instantiation_statement
    --                         | generate_statement
    --
-   procedure Parse_Concurrent_Statements (Parent : Iir)
+   function Parse_Concurrent_Statement (Parent : Iir; Prev_Label : Name_Id)
+                                        return Iir
    is
-      Last_Stmt : Iir;
       Stmt: Iir;
       Label: Name_Id;
       Id: Iir;
@@ -9691,7 +9933,6 @@ package body Vhdl.Parse is
       end Label_Not_Allowed;
    begin
       -- begin was just parsed.
-      Last_Stmt := Null_Iir;
       loop
          Stmt := Null_Iir;
          Label := Null_Identifier;
@@ -9699,7 +9940,9 @@ package body Vhdl.Parse is
          Loc := Get_Token_Location;
 
          -- Try to find a label.
-         if Current_Token = Tok_Identifier then
+         if Prev_Label /= Null_Identifier then
+            Label := Prev_Label;
+         elsif Current_Token = Tok_Identifier then
             Label := Current_Identifier;
 
             --  Skip identifier
@@ -9737,7 +9980,7 @@ package body Vhdl.Parse is
                if Label /= Null_Identifier then
                   Error_Msg_Parse ("label is not allowed here");
                end if;
-               return;
+               return Null_Iir;
             when Tok_Identifier =>
                Target := Parse_Name (Allow_Indexes => True);
                Stmt := Parse_Concurrent_Assignment (Target);
@@ -9834,10 +10077,11 @@ package body Vhdl.Parse is
                Error_Msg_Parse
                  ("sequential statement only allowed in processes");
                Stmt := Parse_Sequential_Statements (Parent);
+               --  Continue.
                Stmt := Null_Iir;
             when Tok_Eof =>
                Error_Msg_Parse ("unexpected end of file, 'END;' expected");
-               return;
+               return Null_Iir;
             when others =>
                --  FIXME: improve message:
                --  instead of 'unexpected token 'signal' in conc stmt list'
@@ -9847,6 +10091,7 @@ package body Vhdl.Parse is
                if Current_Token = Tok_Semi_Colon then
                   Scan;
                end if;
+               Stmt := Null_Iir;
          end case;
 
          << Has_Stmt >> null;
@@ -9854,6 +10099,7 @@ package body Vhdl.Parse is
          --  Stmt can be null in case of error.
          if Stmt /= Null_Iir then
             Set_Location (Stmt, Loc);
+            Set_Parent (Stmt, Parent);
             if Label /= Null_Identifier then
                Set_Label (Stmt, Label);
             end if;
@@ -9861,14 +10107,31 @@ package body Vhdl.Parse is
             if Postponed then
                Set_Postponed_Flag (Stmt, True);
             end if;
-            --  Append it to the chain.
-            if Last_Stmt = Null_Iir then
-               Set_Concurrent_Statement_Chain (Parent, Stmt);
-            else
-               Set_Chain (Last_Stmt, Stmt);
-            end if;
-            Last_Stmt := Stmt;
+            return Stmt;
          end if;
+      end loop;
+   end Parse_Concurrent_Statement;
+
+   --  precond : first token
+   --  postcond: next token (end/else/when...)
+   procedure Parse_Concurrent_Statements (Parent : Iir)
+   is
+      Last_Stmt : Iir;
+      Stmt      : Iir;
+   begin
+      -- begin was just parsed.
+      Last_Stmt := Null_Iir;
+      loop
+         Stmt := Parse_Concurrent_Statement (Parent, Null_Identifier);
+         exit when Stmt = Null_Iir;
+
+         --  Append it to the chain.
+         if Last_Stmt = Null_Iir then
+            Set_Concurrent_Statement_Chain (Parent, Stmt);
+         else
+            Set_Chain (Last_Stmt, Stmt);
+         end if;
+         Last_Stmt := Stmt;
       end loop;
    end Parse_Concurrent_Statements;
 
@@ -10765,31 +11028,6 @@ package body Vhdl.Parse is
       return Res;
    end Parse_Package;
 
-   --  1850-2005 7.1 Verification directives
-   --  verification_directive ::=
-   --      assert_directive
-   --    | assume_directive
-   --    | assume_guarantee_directive
-   --    | restrict_directive
-   --    | restrive_guarantee_directive
-   --    | cover_directive
-   --    | fairness_directive
-   function Parse_Psl_Directive_Or_Stmt return Node is
-   begin
-      case Current_Token is
-         when Tok_Assume =>
-            return Parse_Psl_Assume_Directive (True);
-         when Tok_Assert =>
-            return Parse_Psl_Assert_Directive (True);
-         when Tok_Restrict =>
-            return Parse_Psl_Restrict_Directive (True);
-         when Tok_Cover =>
-            return Parse_Psl_Cover_Directive (True);
-         when others =>
-            raise Internal_Error;
-      end case;
-   end Parse_Psl_Directive_Or_Stmt;
-
    --  1850-2005 7.2 Verification units
    --  verification_unit ::=
    --    vunit_type PSL_Identifier [ ( hierachical_hdl_name ) ] {
@@ -10798,10 +11036,13 @@ package body Vhdl.Parse is
    --    }
    procedure Parse_Verification_Unit (Unit : Iir_Design_Unit)
    is
-      Kind : constant Iir_Kind := Iir_Kind_Vunit_Declaration;
-      Hier_Name : Iir;
-      Res : Iir;
+      Kind            : constant Iir_Kind := Iir_Kind_Vunit_Declaration;
+      Hier_Name       : Iir;
+      Res             : Iir;
       Item, Last_Item : Iir;
+
+      Label           : Name_Id;
+      Loc             : Location_Type;
    begin
       Res := Create_Iir (Kind);
       Set_Parent (Res, Unit);
@@ -10851,63 +11092,68 @@ package body Vhdl.Parse is
          --  Some parse subprograms clear the mode...
          Vhdl.Scanner.Flag_Psl := True;
 
+         if Current_Token = Tok_Identifier then
+            Label := Current_Identifier;
+            Loc := Get_Token_Location;
+
+            --  Skip label.
+            Scan;
+
+            if Current_Token = Tok_Colon then
+               --  Skip ':'.
+               Scan;
+            else
+               Item := Parse_Concurrent_Assignment_With_Name (Label, Loc);
+               goto Has_Stmt;
+            end if;
+         else
+            Label := Null_Identifier;
+         end if;
+
          case Current_Token is
-            when Tok_Default =>
-               Item := Parse_Psl_Default_Clock (True);
-            when Tok_Assume
-              | Tok_Assert
-              | Tok_Restrict
-              | Tok_Cover =>
-               Item := Parse_Psl_Directive_Or_Stmt;
             when Tok_Type
-              | Tok_Subtype
-              | Tok_Signal
-              | Tok_Constant
-              | Tok_Variable
-              | Tok_Shared
-              | Tok_File
-              | Tok_Function
-              | Tok_Pure
-              | Tok_Impure
-              | Tok_Procedure
-              | Tok_Alias
-              | Tok_For
-              | Tok_Attribute
-              | Tok_Disconnect
-              | Tok_Use
-              | Tok_Group
-              | Tok_Package =>
+               | Tok_Subtype
+               | Tok_Signal
+               | Tok_Constant
+               | Tok_Variable
+               | Tok_Shared
+               | Tok_File
+               | Tok_Function
+               | Tok_Pure
+               | Tok_Impure
+               | Tok_Procedure
+               | Tok_Alias
+               | Tok_For
+               | Tok_Attribute
+               | Tok_Disconnect
+               | Tok_Use
+               | Tok_Group
+               | Tok_Package
+               | Tok_Default =>
+               if Label /= Null_Identifier then
+                  Error_Msg_Sem
+                    (+Loc, "label not allowed before a declaration");
+                  Label := Null_Identifier;
+               end if;
                --  Do not recognize PSL keywords.  This is required for
                --  'boolean' which is a PSL keyword.
                Vhdl.Scanner.Flag_Psl := False;
                Item := Parse_Declaration (Res, Res);
-               Vhdl.Scanner.Flag_Psl := True;
-            when Tok_Identifier =>
-               declare
-                  Label : Name_Id;
-                  Loc : Location_Type;
-               begin
-                  Label := Current_Identifier;
-                  Loc := Get_Token_Location;
 
-                  --  Skip label.
-                  Scan;
-
-                  if Current_Token = Tok_Colon then
-                     --  Skip ':'.
-                     Scan;
-
-                     Item := Parse_Psl_Directive_Or_Stmt;
-                     Set_Label (Item, Label);
-                     Set_Location (Item, Loc);
-                  else
-                     Item := Parse_Concurrent_Assignment_With_Name
-                       (Label, Loc);
-                  end if;
-               end;
-            when others =>
+            when Tok_End
+               | Tok_Eof
+               | Tok_Right_Curly =>
                exit;
+
+            when others =>
+               --  Do not recognize PSL keywords.  This is required for
+               --  'boolean' which is a PSL keyword.
+               Vhdl.Scanner.Flag_Psl := False;
+               Item := Parse_Concurrent_Statement (Res, Label);
+               exit when Item = Null_Iir;
          end case;
+
+         <<Has_Stmt>> null;
 
          while Item /= Null_Iir loop
             Set_Parent (Item, Res);

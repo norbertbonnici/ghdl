@@ -27,6 +27,10 @@ package Netlists.Utils is
    procedure Free_Net_Array is new Ada.Unchecked_Deallocation
      (Net_Array, Net_Array_Acc);
 
+   type Instance_Array_Acc is access Instance_Array;
+   procedure Free_Instance_Array is new Ada.Unchecked_Deallocation
+     (Instance_Array, Instance_Array_Acc);
+
    function Get_Nbr_Inputs (Inst : Instance) return Port_Nbr;
    function Get_Nbr_Outputs (Inst : Instance) return Port_Nbr;
    function Get_Nbr_Params (Inst : Instance) return Param_Nbr;
@@ -36,11 +40,18 @@ package Netlists.Utils is
 
    function Get_Id (Inst : Instance) return Module_Id;
 
+   --  For the yosys plugin: name of a port or a parameter
    function Get_Input_Name (M : Module; I : Port_Idx) return Sname;
    function Get_Output_Name (M : Module; I : Port_Idx) return Sname;
+   function Get_Param_Name (M : Module; I : Param_Idx) return Sname;
+   function Get_Param_Type (M : Module; I : Param_Idx) return Param_Type;
 
+   --  For the yosys plugin: width of a port
    function Get_Input_Width (M : Module; I : Port_Idx) return Width;
    function Get_Output_Width (M : Module; I : Port_Idx) return Width;
+
+   --  For the yosys plugin: true if an output is also an input.
+   function Get_Inout_Flag (M : Module; I : Port_Idx) return Boolean;
 
    --  Return the net (driver) connected to input IDX of INSTANCE.
    function Get_Input_Net (Inst : Instance; Idx : Port_Idx) return Net;
@@ -70,9 +81,9 @@ package Netlists.Utils is
    --  Return True iff O has one sink (is connected to one input).
    function Has_One_Connection (O : Net) return Boolean;
 
-   --  Disconnect input I.  If the driver of I has no output(s) connected,
-   --  disconnect and free it.
-   procedure Disconnect_And_Free (I : Input);
+   --  Disconnect an input and return the previous driver.
+   function Disconnect_And_Get (I : Input) return Net;
+   function Disconnect_And_Get (Inst : Instance; I : Port_Idx) return Net;
 
    --  Return true IFF L and R is the same net.
    --  Either because L = R (obvious case) or because both are the same
@@ -84,6 +95,9 @@ package Netlists.Utils is
    function Skip_Signal (N : Net) return Net;
 
    function Clog2 (W : Width) return Width;
+
+   --  Copy attribtues of SRC to DEST.
+   procedure Copy_Attributes (Dest : Instance; Src : Instance);
 
    --  Used at many places.
    package Net_Tables is new Dyn_Tables

@@ -350,6 +350,10 @@ package body Vhdl.Elocations is
            | Iir_Kind_Implicit_Dereference
            | Iir_Kind_Slice_Name
            | Iir_Kind_Indexed_Name
+           | Iir_Kind_Psl_Prev
+           | Iir_Kind_Psl_Stable
+           | Iir_Kind_Psl_Rose
+           | Iir_Kind_Psl_Fell
            | Iir_Kind_Psl_Expression
            | Iir_Kind_Concurrent_Assertion_Statement
            | Iir_Kind_Concurrent_Procedure_Call_Statement
@@ -365,6 +369,8 @@ package body Vhdl.Elocations is
            | Iir_Kind_Simple_Signal_Assignment_Statement
            | Iir_Kind_Conditional_Signal_Assignment_Statement
            | Iir_Kind_Selected_Waveform_Assignment_Statement
+           | Iir_Kind_Signal_Force_Assignment_Statement
+           | Iir_Kind_Signal_Release_Assignment_Statement
            | Iir_Kind_Null_Statement
            | Iir_Kind_Assertion_Statement
            | Iir_Kind_Report_Statement

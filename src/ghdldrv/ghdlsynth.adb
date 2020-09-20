@@ -19,6 +19,7 @@
 with GNAT.OS_Lib; use GNAT.OS_Lib;
 
 with Types; use Types;
+with Name_Table;
 with Ghdllocal; use Ghdllocal;
 with Ghdlcomp; use Ghdlcomp;
 with Ghdlmain; use Ghdlmain;
@@ -28,6 +29,7 @@ with Errorout.Console;
 with Version;
 with Default_Paths;
 with Bug;
+with Simple_IO;
 
 with Libraries;
 with Flags;
@@ -42,6 +44,7 @@ with Vhdl.Utils;
 
 with Netlists.Dump;
 with Netlists.Disp_Vhdl;
+with Netlists.Disp_Dot;
 with Netlists.Errors;
 
 with Synthesis;
@@ -51,23 +54,40 @@ with Synth.Flags; use Synth.Flags;
 
 package body Ghdlsynth is
    type Out_Format is
-     (Format_Default, Format_Raw, Format_Dump, Format_Vhdl, Format_None);
+     (Format_Default,
+      Format_Raw, Format_Dump, Format_Dot,
+      Format_Vhdl,
+      Format_None);
+
+   type Name_Id_Array is array (Natural range <>) of Name_Id;
 
    --  Command --synth
    type Command_Synth is new Command_Lib with record
+      --  Control format of the output.
       Disp_Inline : Boolean := True;
       Disp_Id : Boolean := True;
-      Oformat : Out_Format := Format_Default;
+      Oformat     : Out_Format := Format_Default;
+
+      Flag_Stats : Boolean := False;
+
+      --  Control name encoding of the top-entity.
+      Top_Encoding : Name_Encoding := Name_Asis;
+
+      --  If True, a failure is expected.  For tests.
       Expect_Failure : Boolean := False;
+
+      Nbr_Vendor_Libraries : Natural := 0;
+      Vendor_Libraries : Name_Id_Array (1 .. 8) := (others => No_Name_Id);
    end record;
    function Decode_Command (Cmd : Command_Synth; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Synth) return String;
+   procedure Disp_Long_Help (Cmd : Command_Synth);
    procedure Decode_Option (Cmd : in out Command_Synth;
                             Option : String;
                             Arg : String;
                             Res : out Option_State);
-   procedure Perform_Action (Cmd : Command_Synth;
+   procedure Perform_Action (Cmd : in out Command_Synth;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Synth; Name : String)
@@ -75,15 +95,41 @@ package body Ghdlsynth is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--synth";
+      return
+        Name = "synth" or else
+        Name = "--synth";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Synth) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--synth [FILES... -e] UNIT [ARCH]   Synthesis from UNIT";
+      return "synth [FILES... -e] UNIT [ARCH]"
+        & ASCII.LF & "  Synthesis from UNIT"
+        & ASCII.LF & "  alias: --synth";
    end Get_Short_Help;
+
+   procedure Disp_Long_Help (Cmd : Command_Synth)
+   is
+      pragma Unreferenced (Cmd);
+      procedure P (Str : String) renames Simple_IO.Put_Line;
+   begin
+      P ("You can directly pass the list of files to synthesize:");
+      P ("   --synth [OPTIONS] { [--work=NAME] FILE } -e [UNIT]");
+      P (" If UNIT is not present, the top unit is automatically found");
+      P (" You can use --work=NAME to change the library between files");
+      P ("Or use already analysed files:");
+      P ("   --synth [OPTIONS] -e UNIT");
+      P ("In addition to analyze options, you can use:");
+      P ("  -gNAME=VALUE");
+      P ("    Override the generic NAME of the top unit");
+      P ("  --vendor-library=NAME");
+      P ("    Any unit from library NAME is a black boxe");
+      P ("  --no-formal");
+      P ("    Neither synthesize assert nor PSL");
+      P ("  --no-assert-cover");
+      P ("    Cover PSL assertion activation");
+   end Disp_Long_Help;
 
    procedure Decode_Option (Cmd : in out Command_Synth;
                             Option : String;
@@ -92,50 +138,89 @@ package body Ghdlsynth is
    is
       pragma Assert (Option'First = 1);
    begin
+      Res := Option_Ok;
+
       if Option'Last > 3
         and then Option (2) = 'g'
         and then Is_Generic_Override_Option (Option)
       then
          Res := Decode_Generic_Override_Option (Option);
+      elsif Option = "--no-formal" then
+         Synth.Flags.Flag_Formal := False;
+      elsif Option = "--formal" then
+         Synth.Flags.Flag_Formal := True;
+      elsif Option = "--no-assert-cover" then
+         Synth.Flags.Flag_Assert_Cover := False;
+      elsif Option = "--assert-cover" then
+         Synth.Flags.Flag_Assert_Cover := True;
+      elsif Option = "--top-name=hash" then
+         Cmd.Top_Encoding := Name_Hash;
+      elsif Option = "--top-name=asis" then
+         Cmd.Top_Encoding := Name_Asis;
+      elsif Option'Last > 17
+        and then Option (1 .. 17) = "--vendor-library="
+      then
+         if Cmd.Nbr_Vendor_Libraries >= Cmd.Vendor_Libraries'Last then
+            --  FIXME: use a table/vector ?
+            Errorout.Error_Msg_Option ("too many vendor libraries");
+            Res := Option_Err;
+         else
+            declare
+               Name : String := Option (18 .. Option'Last);
+               Err : Boolean;
+            begin
+               Vhdl.Scanner.Convert_Identifier (Name, Err);
+               if Err then
+                  Res := Option_Err;
+               else
+                  Cmd.Nbr_Vendor_Libraries := Cmd.Nbr_Vendor_Libraries + 1;
+                  Cmd.Vendor_Libraries (Cmd.Nbr_Vendor_Libraries) :=
+                    Name_Table.Get_Identifier (Name);
+               end if;
+            end;
+         end if;
       elsif Option = "--expect-failure" then
          Cmd.Expect_Failure := True;
-         Res := Option_Ok;
       elsif Option = "--disp-noinline" then
          Cmd.Disp_Inline := False;
-         Res := Option_Ok;
       elsif Option = "--disp-noid" then
          Cmd.Disp_Id := False;
-         Res := Option_Ok;
       elsif Option = "--out=raw" then
          Cmd.Oformat := Format_Raw;
-         Res := Option_Ok;
       elsif Option = "--out=dump" then
          Cmd.Oformat := Format_Dump;
-         Res := Option_Ok;
+      elsif Option = "--out=dot" then
+         Cmd.Oformat := Format_Dot;
       elsif Option = "--out=none" then
          Cmd.Oformat := Format_None;
-         Res := Option_Ok;
       elsif Option = "--out=vhdl" then
          Cmd.Oformat := Format_Vhdl;
-         Res := Option_Ok;
       elsif Option = "-di" then
          Flag_Debug_Noinference := True;
-         Res := Option_Ok;
       elsif Option = "-dc" then
          Flag_Debug_Nocleanup := True;
-         Res := Option_Ok;
       elsif Option = "-dm" then
-         Flag_Debug_Nomemory := True;
-         Res := Option_Ok;
+         Flag_Debug_Nomemory1 := True;
+         Flag_Debug_Nomemory2 := True;
+      elsif Option = "-dm2" then
+         --  Reduce muxes, but do not create memories.
+         Flag_Debug_Nomemory2 := True;
       elsif Option = "-de" then
          Flag_Debug_Noexpand := True;
-         Res := Option_Ok;
       elsif Option = "-t" then
          Flag_Trace_Statements := True;
-         Res := Option_Ok;
       elsif Option = "-i" then
          Flag_Debug_Init := True;
-         Res := Option_Ok;
+      elsif Option = "-g" then
+         Flag_Debug_Enable := True;
+      elsif Option = "-v" then
+         if not Synth.Flags.Flag_Verbose then
+            Synth.Flags.Flag_Verbose := True;
+         else
+            Flags.Verbose := True;
+         end if;
+      elsif Option = "--stats" then
+         Cmd.Flag_Stats := True;
       else
          Decode_Option (Command_Lib (Cmd), Option, Arg, Res);
       end if;
@@ -143,8 +228,8 @@ package body Ghdlsynth is
 
    --  Init, analyze and configure.
    --  Return the top configuration.
-   function Ghdl_Synth_Configure (Init : Boolean; Args : Argument_List)
-                                 return Node
+   function Ghdl_Synth_Configure
+     (Init : Boolean; Cmd : Command_Synth; Args : Argument_List) return Node
    is
       use Vhdl.Errors;
       use Vhdl.Configuration;
@@ -186,6 +271,17 @@ package body Ghdlsynth is
          Vhdl.Canon.Canon_Flag_Inertial_Associations := False;
       end if;
 
+      --  Mark vendor libraries.
+      for I in 1 .. Cmd.Nbr_Vendor_Libraries loop
+         declare
+            Lib : Node;
+         begin
+            Lib := Libraries.Get_Library
+              (Cmd.Vendor_Libraries (I), No_Location);
+            Set_Vendor_Library_Flag (Lib, True);
+         end;
+      end loop;
+
       Flags.Flag_Elaborate_With_Outdated := E_Opt >= Args'First;
 
       --  Analyze files (if any)
@@ -193,15 +289,17 @@ package body Ghdlsynth is
          declare
             Arg : String renames Args (I).all;
             pragma Assert (Arg'First = 1);
+            Id : Name_Id;
          begin
             if Arg'Last > 7 and then Arg (1 .. 7) = "--work=" then
-               if Libraries.Decode_Work_Option (Arg) then
-                  Libraries.Load_Work_Library (True);
-               else
+               Id := Libraries.Decode_Work_Option (Arg);
+               if Id = Null_Identifier then
                   return Null_Iir;
                end if;
+               Libraries.Work_Library_Name := Id;
+               Libraries.Load_Work_Library (True);
             else
-               Design_File := Ghdlcomp.Compile_Analyze_File2 (Arg);
+               Ghdlcomp.Compile_Load_File (Arg);
             end if;
          end;
       end loop;
@@ -215,7 +313,8 @@ package body Ghdlsynth is
       --  Elaborate
       if E_Opt = Args'Last then
          --  No unit.
-         Top := Vhdl.Configuration.Find_Top_Entity (Libraries.Work_Library);
+         Top := Vhdl.Configuration.Find_Top_Entity
+           (Libraries.Work_Library, Libraries.Command_Line_Location);
          if Top = Null_Node then
             Ghdlmain.Error ("no top unit found");
             return Null_Iir;
@@ -295,6 +394,8 @@ package body Ghdlsynth is
          when Format_Dump =>
             Netlists.Dump.Flag_Disp_Inline := Cmd.Disp_Inline;
             Netlists.Dump.Dump_Module (Res);
+         when Format_Dot =>
+            Netlists.Disp_Dot.Disp_Dot_Top_Module (Res);
          when Format_Vhdl =>
             if Boolean'(True) then
                Ent := Vhdl.Utils.Get_Entity_From_Configuration (Config);
@@ -312,7 +413,7 @@ package body Ghdlsynth is
       use Vhdl.Configuration;
       Args : Argument_List (1 .. Argc);
       Res : Module;
-      Cmd : Command_Acc;
+      Cmd : Command_Synth;
       First_Arg : Natural;
       Config : Node;
       Inst : Synth_Instance_Acc;
@@ -327,21 +428,21 @@ package body Ghdlsynth is
       end loop;
 
       --  Find the command.  This is a little bit convoluted...
-      Decode_Command_Options ("--synth", Cmd, Args, First_Arg);
+      Decode_Command_Options (Cmd, Args, First_Arg);
 
       --  Do the real work!
       Config := Ghdl_Synth_Configure
-        (Init /= 0, Args (First_Arg .. Args'Last));
+        (Init /= 0, Cmd, Args (First_Arg .. Args'Last));
       if Config = Null_Iir then
          return No_Module;
       end if;
 
-      Synthesis.Synth_Design (Config, Res, Inst);
+      Synthesis.Synth_Design (Config, Cmd.Top_Encoding, Res, Inst);
       if Res = No_Module then
          return No_Module;
       end if;
 
-      Disp_Design (Command_Synth (Cmd.all), Format_None, Res, Config, Inst);
+      Disp_Design (Cmd, Format_None, Res, Config, Inst);
 
       --  De-elaborate all packages, so that they could be re-used for
       --  synthesis of a second design.
@@ -356,7 +457,8 @@ package body Ghdlsynth is
       return Res;
 
    exception
-      when Option_Error =>
+      when Option_Error
+        | Errorout.Compilation_Error =>
          return No_Module;
       when E: others =>
          --  Avoid possible issues with exceptions...
@@ -364,14 +466,14 @@ package body Ghdlsynth is
          return No_Module;
    end Ghdl_Synth;
 
-   procedure Perform_Action (Cmd : Command_Synth;
+   procedure Perform_Action (Cmd : in out Command_Synth;
                              Args : Argument_List)
    is
       Res : Module;
       Inst : Synth_Instance_Acc;
       Config : Iir;
    begin
-      Config := Ghdl_Synth_Configure (True, Args);
+      Config := Ghdl_Synth_Configure (True, Cmd, Args);
 
       if Config = Null_Iir then
          if Cmd.Expect_Failure then
@@ -383,7 +485,7 @@ package body Ghdlsynth is
 
       Netlists.Errors.Initialize;
 
-      Synthesis.Synth_Design (Config, Res, Inst);
+      Synthesis.Synth_Design (Config, Cmd.Top_Encoding, Res, Inst);
       if Res = No_Module then
          if Cmd.Expect_Failure then
             return;
@@ -395,6 +497,10 @@ package body Ghdlsynth is
       end if;
 
       Disp_Design (Cmd, Format_Vhdl, Res, Config, Inst);
+
+      if Cmd.Flag_Stats then
+         Netlists.Disp_Stats;
+      end if;
    end Perform_Action;
 
    function Get_Libghdl_Name return String
@@ -438,7 +544,8 @@ package body Ghdlsynth is
             Cmd_Str => new String'
               ("--libghdl-name"),
             Help_Str => new String'
-              ("--libghdl-name  Display libghdl name"),
+              ("--libghdl-name"
+              & ASCII.LF & "  Display libghdl name"),
             Disp => Get_Libghdl_Name'Access));
       Register_Command
         (new Command_Str_Disp'
@@ -446,7 +553,8 @@ package body Ghdlsynth is
             Cmd_Str => new String'
               ("--libghdl-library-path"),
             Help_Str => new String'
-              ("--libghdl-library-path  Display libghdl library path"),
+              ("--libghdl-library-path"
+              & ASCII.LF & "  Display libghdl library path"),
             Disp => Get_Libghdl_Path'Access));
       Register_Command
         (new Command_Str_Disp'
@@ -454,7 +562,8 @@ package body Ghdlsynth is
             Cmd_Str => new String'
               ("--libghdl-include-dir"),
             Help_Str => new String'
-              ("--libghdl-include-dir  Display libghdl include directory"),
+              ("--libghdl-include-dir"
+              & ASCII.LF & "  Display libghdl include directory"),
             Disp => Get_Libghdl_Include_Dir'Access));
    end Register_Commands;
 

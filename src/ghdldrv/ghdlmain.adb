@@ -93,7 +93,8 @@ package body Ghdlmain is
       return Cmd.Help_Str.all;
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Str_Disp; Args : Argument_List)
+   procedure Perform_Action
+     (Cmd : in out Command_Str_Disp; Args : Argument_List)
    is
       pragma Unreferenced (Args);
    begin
@@ -110,13 +111,16 @@ package body Ghdlmain is
                             Res : out Option_State);
 
    function Get_Short_Help (Cmd : Command_Help) return String;
-   procedure Perform_Action (Cmd : Command_Help; Args : Argument_List);
+   procedure Perform_Action (Cmd : in out Command_Help; Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Help; Name : String) return Boolean
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "-h" or else Name = "--help";
+      return
+        Name = "help" or else
+        Name = "--help" or else
+        Name = "-h";
    end Decode_Command;
 
    procedure Decode_Option (Cmd : in out Command_Help;
@@ -135,10 +139,12 @@ package body Ghdlmain is
    is
       pragma Unreferenced (Cmd);
    begin
-      return "-h or --help [CMD] Disp this help or [help on CMD]";
+      return "help [CMD]"
+        & ASCII.LF & "  Display this help or [help on CMD]"
+        & ASCII.LF & "  aliases: -h, --help";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Help; Args : Argument_List)
+   procedure Perform_Action (Cmd : in out Command_Help; Args : Argument_List)
    is
       pragma Unreferenced (Cmd);
 
@@ -162,8 +168,8 @@ package body Ghdlmain is
          end loop;
          New_Line;
          Put_Line ("To display the options of a GHDL program,");
-         Put_Line ("  run your program with the --help option.");
-         Put_Line ("Also see --options-help for analyzer options.");
+         Put_Line ("  run your program with the 'help' option.");
+         Put_Line ("Also see 'opts-help' for analyzer options.");
          New_Line;
          Put_Line ("Please, refer to the GHDL manual for more information.");
          Put_Line ("Report issues on https://github.com/ghdl/ghdl");
@@ -176,7 +182,7 @@ package body Ghdlmain is
          Put_Line (Get_Short_Help (C.all));
          Disp_Long_Help (C.all);
       else
-         Error ("Command '--help' accepts at most one argument.");
+         Error ("Command 'help' accepts at most one argument.");
          raise Option_Error;
       end if;
    end Perform_Action;
@@ -186,7 +192,7 @@ package body Ghdlmain is
    function Decode_Command (Cmd : Command_Option_Help; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Option_Help) return String;
-   procedure Perform_Action (Cmd : Command_Option_Help;
+   procedure Perform_Action (Cmd : in out Command_Option_Help;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Option_Help; Name : String)
@@ -194,24 +200,28 @@ package body Ghdlmain is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--options-help";
+      return
+        Name = "opts-help" or else
+        Name = "--options-help";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Option_Help) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--options-help     Disp help for analyzer options";
+      return "opts-help"
+        & ASCII.LF & "  Display help for analyzer options"
+        & ASCII.LF & "  alias: --options-help";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Option_Help;
+   procedure Perform_Action (Cmd : in out Command_Option_Help;
                              Args : Argument_List)
    is
       pragma Unreferenced (Cmd);
    begin
       if Args'Length /= 0 then
          Error
-           ("warning: command '--option-help' does not accept any argument");
+           ("warning: command 'opts-help' does not accept any argument");
       end if;
       Options.Disp_Options_Help;
    end Perform_Action;
@@ -221,7 +231,7 @@ package body Ghdlmain is
    function Decode_Command (Cmd : Command_Version; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Version) return String;
-   procedure Perform_Action (Cmd : Command_Version;
+   procedure Perform_Action (Cmd : in out Command_Version;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Version; Name : String)
@@ -229,17 +239,22 @@ package body Ghdlmain is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "-v" or Name = "--version";
+      return
+        Name = "version" or else
+        Name = "--version" or else
+        Name = "-v";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Version) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "-v or --version    Disp ghdl version";
+      return "version"
+        & ASCII.LF & "  Display ghdl version"
+        & ASCII.LF & "  aliases: -v, --version";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Version;
+   procedure Perform_Action (Cmd : in out Command_Version;
                              Args : Argument_List)
    is
       pragma Unreferenced (Cmd);
@@ -258,7 +273,7 @@ package body Ghdlmain is
       Put_Line ("Written by Tristan Gingold.");
       New_Line;
       --  Display copyright.  Assume 80 cols terminal.
-      Put_Line ("Copyright (C) 2003 - 2019 Tristan Gingold.");
+      Put_Line ("Copyright (C) 2003 - 2020 Tristan Gingold.");
       Put_Line ("GHDL is free software, covered by the "
                 & "GNU General Public License.  There is NO");
       Put_Line ("warranty; not even for MERCHANTABILITY or"
@@ -289,23 +304,30 @@ package body Ghdlmain is
       return 0;
    end Index;
 
-   --  Decode command CMD_NAME and options from ARGS.
-   --  Return the index of the first non-option argument.
-   procedure Decode_Command_Options (Cmd_Name : String;
-                                     Cmd : out Command_Acc;
+   --  Decode command CMD_NAME and return the command_type.
+   --  If the command is not known, emit an error message and
+   --  raise Option_Error.
+   function Find_Command_With_Error (Cmd_Name : String) return Command_Acc
+   is
+      Cmd : Command_Acc;
+   begin
+      --  Decode command.
+      Cmd := Find_Command (Cmd_Name);
+      if Cmd = null then
+         Error ("unknown command '" & Cmd_Name & "', try 'help'");
+         raise Option_Error;
+      end if;
+
+      return Cmd;
+   end Find_Command_With_Error;
+
+   procedure Decode_Command_Options (Cmd : in out Command_Type'Class;
                                      Args : Argument_List;
                                      First_Arg : out Natural)
    is
       Arg_Index : Natural;
    begin
-      --  Decode command.
-      Cmd := Find_Command (Cmd_Name);
-      if Cmd = null then
-         Error ("unknown command '" & Cmd_Name & "', try --help");
-         raise Option_Error;
-      end if;
-
-      Init (Cmd.all);
+      Init (Cmd);
 
       --  Decode options.
 
@@ -324,11 +346,10 @@ package body Ghdlmain is
                   raise Option_Error;
                end if;
 
-               Decode_Option (Cmd.all, Arg.all, "", Res);
+               Decode_Option (Cmd, Arg.all, "", Res);
                case Res is
                   when Option_Unknown =>
-                     Error ("unknown option '" & Arg.all & "' for command '"
-                            & Cmd_Name & "'");
+                     Error ("unknown option '" & Arg.all & "'");
                      raise Option_Error;
                   when Option_Err =>
                      raise Option_Error;
@@ -341,7 +362,7 @@ package body Ghdlmain is
                         raise Option_Error;
                      end if;
                      Decode_Option
-                       (Cmd.all, Arg.all, Args (Arg_Index + 1).all, Res);
+                       (Cmd, Arg.all, Args (Arg_Index + 1).all, Res);
                      if Res /= Option_Arg then
                         raise Program_Error;
                      end if;
@@ -407,7 +428,7 @@ package body Ghdlmain is
 
       --  Handle case of no argument
       if Argument_Count = 0 then
-         Error ("missing command, try " & Command_Name & " --help");
+         Error ("missing command, try " & Command_Name & " 'help'");
          raise Option_Error;
       end if;
 
@@ -471,8 +492,8 @@ package body Ghdlmain is
          Cmd : Command_Acc;
          First_Arg : Natural;
       begin
-         Decode_Command_Options (Args (1).all, Cmd,
-                                 Args (2 .. Args'Last), First_Arg);
+         Cmd := Find_Command_With_Error (Args (1).all);
+         Decode_Command_Options (Cmd.all, Args (2 .. Args'Last), First_Arg);
 
          --  Set before running the action, so that it can be changed.
          Set_Exit_Status (Success);

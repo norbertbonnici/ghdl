@@ -286,8 +286,8 @@ package body Trans.Rtis is
             Ghdl_Rtik_Subtype_Array);
          New_Enum_Literal
            (Constr,
-            Get_Identifier ("__ghdl_rtik_subtype_unconstrained_array"),
-            Ghdl_Rtik_Subtype_Unconstrained_Array);
+            Get_Identifier ("__ghdl_rtik_subtype_unbounded_array"),
+            Ghdl_Rtik_Subtype_Unbounded_Array);
          New_Enum_Literal
            (Constr, Get_Identifier ("__ghdl_rtik_subtype_record"),
             Ghdl_Rtik_Subtype_Record);
@@ -877,20 +877,19 @@ package body Trans.Rtis is
 
       function Generate_Rti_Array (Id : O_Ident) return O_Dnode
       is
-         Arr_Type : O_Tnode;
-         List     : O_Array_Aggr_List;
-         L        : Rti_Array_List_Acc;
-         Nbr      : Integer;
-         Val      : O_Cnode;
-         Res      : O_Dnode;
+         List  : O_Array_Aggr_List;
+         L     : Rti_Array_List_Acc;
+         Nbr   : Integer;
+         Val   : O_Cnode;
+         Res   : O_Dnode;
+         Stype : O_Tnode;
       begin
-         Arr_Type := New_Constrained_Array_Type
-           (Ghdl_Rti_Array,
-            New_Unsigned_Literal (Ghdl_Index_Type,
-                                  Unsigned_64 (Cur_Block.Nbr + 1)));
-         New_Const_Decl (Res, Id, O_Storage_Private, Arr_Type);
+         Stype := New_Array_Subtype
+           (Ghdl_Rti_Array, Ghdl_Rti_Access,
+            New_Index_Lit (Unsigned_64 (Cur_Block.Nbr + 1)));
+         New_Const_Decl (Res, Id, O_Storage_Private, Stype);
          Start_Init_Value (Res);
-         Start_Array_Aggr (List, Arr_Type);
+         Start_Array_Aggr (List, Stype, Unsigned_32 (Cur_Block.Nbr + 1));
          Nbr := Cur_Block.Nbr;
 
          --  First chunk.
@@ -1098,7 +1097,7 @@ package body Trans.Rtis is
          type Dnode_Array is array (Natural range <>) of O_Dnode;
          Name_Lits : Dnode_Array (0 .. Nbr_Lit - 1);
          Mark : Id_Mark_Type;
-         Name_Arr_Type : O_Tnode;
+         Name_Arr_St : O_Tnode;
          Name_Arr : O_Dnode;
 
          Arr_Aggr : O_Array_Aggr_List;
@@ -1115,14 +1114,14 @@ package body Trans.Rtis is
          end loop;
 
          --  Generate array of names.
-         Name_Arr_Type := New_Constrained_Array_Type
+         Name_Arr_St := New_Array_Subtype
            (Char_Ptr_Array_Type,
-            New_Unsigned_Literal (Ghdl_Index_Type,
-              Unsigned_64 (Nbr_Lit)));
+            Char_Ptr_Type,
+            New_Index_Lit (Unsigned_64 (Nbr_Lit)));
          New_Const_Decl (Name_Arr, Create_Identifier ("RTINAMES"),
-                         O_Storage_Private, Name_Arr_Type);
+                         O_Storage_Private, Name_Arr_St);
          Start_Init_Value (Name_Arr);
-         Start_Array_Aggr (Arr_Aggr, Name_Arr_Type);
+         Start_Array_Aggr (Arr_Aggr, Name_Arr_St, Unsigned_32 (Nbr_Lit));
          for I in Name_Lits'Range loop
             New_Array_Aggr_El (Arr_Aggr, New_Name_Address (Name_Lits (I)));
          end loop;
@@ -1413,7 +1412,7 @@ package body Trans.Rtis is
       Index       : Iir;
       Tmp         : O_Dnode;
       pragma Unreferenced (Tmp);
-      Arr_Type    : O_Tnode;
+      Stype       : O_Tnode;
       Arr_Aggr    : O_Array_Aggr_List;
       Val         : O_Cnode;
       Mark        : Id_Mark_Type;
@@ -1429,14 +1428,13 @@ package body Trans.Rtis is
       end loop;
 
       --  Generate array of index.
-      Arr_Type := New_Constrained_Array_Type
-        (Ghdl_Rti_Array,
-         New_Unsigned_Literal (Ghdl_Index_Type, Unsigned_64 (Nbr_Indexes)));
+      Stype := New_Array_Subtype (Ghdl_Rti_Array, Ghdl_Rti_Access,
+                                  New_Index_Lit (Unsigned_64 (Nbr_Indexes)));
       New_Const_Decl (Res, Create_Identifier ("RTIINDEXES"),
-                      Global_Storage, Arr_Type);
+                      Global_Storage, Stype);
       Start_Init_Value (Res);
 
-      Start_Array_Aggr (Arr_Aggr, Arr_Type);
+      Start_Array_Aggr (Arr_Aggr, Stype, Unsigned_32 (Nbr_Indexes));
       for I in 1 .. Nbr_Indexes loop
          Index := Get_Index_Type (List, I - 1);
          New_Array_Aggr_El
@@ -1552,7 +1550,7 @@ package body Trans.Rtis is
          when Type_Mode_Bounded_Arrays =>
             Kind := Ghdl_Rtik_Subtype_Array;
          when Type_Mode_Unbounded_Array =>
-            Kind := Ghdl_Rtik_Subtype_Unconstrained_Array;
+            Kind := Ghdl_Rtik_Subtype_Unbounded_Array;
          when Type_Mode_Bounded_Records =>
             Kind := Ghdl_Rtik_Subtype_Record;
          when Type_Mode_Unbounded_Record =>
@@ -1632,9 +1630,8 @@ package body Trans.Rtis is
             Push_Identifier_Prefix (Mark, Get_Identifier (El));
 
             Type_Rti := Generate_Type_Definition (El_Type);
-            Max_Depth :=
-              Rti_Depth_Type'Max (Max_Depth,
-                                  Get_Info (El_Type).B.Rti_Max_Depth);
+            Max_Depth := Rti_Depth_Type'Max
+              (Max_Depth, Get_Info (El_Type).B.Rti_Max_Depth);
 
             case El_Tinfo.Type_Mode is
                when Type_Mode_Unbounded_Array
@@ -1715,6 +1712,11 @@ package body Trans.Rtis is
          else
             Rtik := Ghdl_Rtik_Type_Unbounded_Record;
          end if;
+
+         --  The layout variable may be deeper than the sub-elements (because
+         --  the record can be declared in a deeper scope).
+         Max_Depth := Rti_Depth_Type'Max (Max_Depth, Depth);
+
          New_Record_Aggr_El
            (Aggr, Generate_Common_Type
               (Rtik, Depth, Max_Depth, Type_To_Mode (Atype)));
@@ -2359,7 +2361,8 @@ package body Trans.Rtis is
                   end;
                end if;
 
-            when Iir_Kind_Package_Instantiation_Declaration =>
+            when Iir_Kind_Package_Instantiation_Declaration
+              |  Iir_Kind_Interface_Package_Declaration =>
                --  FIXME: todo
                null;
 

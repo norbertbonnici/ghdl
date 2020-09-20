@@ -66,6 +66,12 @@ package Grt.Rtis_Addr is
      (Ctxt : Rti_Context; Gen : Ghdl_Rti_Access) return Rti_Context;
 
    --  Convert a location to an address.
+   --  `Depth` is the position in the design hierarchy of the object
+   --  we are finding the address of.
+   --  `Loc` is the location of that object, relative to the address
+   --  of it's parent.
+   --  `Context` is the RTI node and address of an object deeper in
+   --  the hierarchy that is referencing this object.
    function Loc_To_Addr (Depth : Ghdl_Rti_Depth;
                          Loc : Ghdl_Rti_Loc;
                          Ctxt : Rti_Context)
@@ -88,6 +94,11 @@ package Grt.Rtis_Addr is
                             Rng : out Ghdl_Range_Ptr);
 
    function Array_Layout_To_Bounds (Layout : Address) return Address;
+
+   --  Return bounds (for arrays) or layout (for records) of array
+   --  layout LAYOUT according to element type EL_RTI.
+   function Array_Layout_To_Element
+     (Layout : Address; El_Rti : Ghdl_Rti_Access) return Address;
 
    --  Extract range of every dimension from bounds.
    procedure Bound_To_Range (Bounds_Addr : Address;

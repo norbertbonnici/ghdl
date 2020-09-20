@@ -21,6 +21,7 @@ with Vhdl.Std_Package;
 with Std_Names; use Std_Names;
 with Vhdl.Errors; use Vhdl.Errors;
 with Vhdl.Ieee.Std_Logic_1164;
+with Vhdl.Utils; use Vhdl.Utils;
 
 package body Vhdl.Ieee.Numeric is
    type Pkg_Kind is (Pkg_Std, Pkg_Bit);
@@ -106,6 +107,42 @@ package body Vhdl.Ieee.Numeric is
            (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Div_Sgn_Sgn,
             Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Div_Sgn_Int,
             Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Div_Int_Sgn,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None)),
+      Pkg_Bit =>
+        (others =>
+           (others => Iir_Predefined_None)));
+
+   Rem_Patterns : constant Binary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Rem_Uns_Uns,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Rem_Uns_Nat,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Rem_Nat_Uns,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None),
+         Type_Signed =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Rem_Sgn_Sgn,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Rem_Sgn_Int,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Rem_Int_Sgn,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None)),
+      Pkg_Bit =>
+        (others =>
+           (others => Iir_Predefined_None)));
+
+   Mod_Patterns : constant Binary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Mod_Uns_Uns,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Mod_Uns_Nat,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Mod_Nat_Uns,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None),
+         Type_Signed =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Mod_Sgn_Sgn,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Mod_Sgn_Int,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Mod_Int_Sgn,
             Arg_Vect_Log  => Iir_Predefined_None,
             Arg_Log_Vect  => Iir_Predefined_None)),
       Pkg_Bit =>
@@ -214,6 +251,42 @@ package body Vhdl.Ieee.Numeric is
            (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Ge_Sgn_Sgn,
             Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Ge_Sgn_Int,
             Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Ge_Int_Sgn,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None)),
+      Pkg_Bit =>
+        (others =>
+           (others => Iir_Predefined_None)));
+
+   Min_Patterns : constant Binary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Min_Uns_Uns,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Min_Uns_Nat,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Min_Nat_Uns,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None),
+         Type_Signed =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Min_Sgn_Sgn,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Min_Sgn_Int,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Min_Int_Sgn,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None)),
+      Pkg_Bit =>
+        (others =>
+           (others => Iir_Predefined_None)));
+
+   Max_Patterns : constant Binary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Max_Uns_Uns,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Max_Uns_Nat,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Max_Nat_Uns,
+            Arg_Vect_Log  => Iir_Predefined_None,
+            Arg_Log_Vect  => Iir_Predefined_None),
+         Type_Signed =>
+           (Arg_Vect_Vect => Iir_Predefined_Ieee_Numeric_Std_Max_Sgn_Sgn,
+            Arg_Vect_Scal => Iir_Predefined_Ieee_Numeric_Std_Max_Sgn_Int,
+            Arg_Scal_Vect => Iir_Predefined_Ieee_Numeric_Std_Max_Int_Sgn,
             Arg_Vect_Log  => Iir_Predefined_None,
             Arg_Log_Vect  => Iir_Predefined_None)),
       Pkg_Bit =>
@@ -349,6 +422,48 @@ package body Vhdl.Ieee.Numeric is
       Pkg_Bit =>
         (others => Iir_Predefined_None));
 
+   Red_And_Patterns : constant Unary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_And_Uns,
+         Type_Signed => Iir_Predefined_Ieee_Numeric_Std_And_Sgn),
+      Pkg_Bit =>
+        (others => Iir_Predefined_None));
+
+   Red_Nand_Patterns : constant Unary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Nand_Uns,
+         Type_Signed => Iir_Predefined_Ieee_Numeric_Std_Nand_Sgn),
+      Pkg_Bit =>
+        (others => Iir_Predefined_None));
+
+   Red_Or_Patterns : constant Unary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Or_Uns,
+         Type_Signed => Iir_Predefined_Ieee_Numeric_Std_Or_Sgn),
+      Pkg_Bit =>
+        (others => Iir_Predefined_None));
+
+   Red_Nor_Patterns : constant Unary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Nor_Uns,
+         Type_Signed => Iir_Predefined_Ieee_Numeric_Std_Nor_Sgn),
+      Pkg_Bit =>
+        (others => Iir_Predefined_None));
+
+   Red_Xor_Patterns : constant Unary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Xor_Uns,
+         Type_Signed => Iir_Predefined_Ieee_Numeric_Std_Xor_Sgn),
+      Pkg_Bit =>
+        (others => Iir_Predefined_None));
+
+   Red_Xnor_Patterns : constant Unary_Pattern_Type :=
+     (Pkg_Std =>
+        (Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Xnor_Uns,
+         Type_Signed => Iir_Predefined_Ieee_Numeric_Std_Xnor_Sgn),
+      Pkg_Bit =>
+        (others => Iir_Predefined_None));
+
    And_Patterns : constant Binary_Pattern_Type :=
      (Pkg_Std =>
         (Type_Unsigned =>
@@ -422,20 +537,20 @@ package body Vhdl.Ieee.Numeric is
            (others => Iir_Predefined_None)));
 
    Shl_Patterns : constant Shift_Pattern_Type :=
-     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Shl_Sgn_Nat,
-      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Shl_Uns_Nat);
+     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Shf_Left_Sgn_Nat,
+      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Shf_Left_Uns_Nat);
 
    Shr_Patterns : constant Shift_Pattern_Type :=
-     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Shr_Sgn_Nat,
-      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Shr_Uns_Nat);
+     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Shf_Right_Sgn_Nat,
+      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Shf_Right_Uns_Nat);
 
    Rol_Patterns : constant Shift_Pattern_Type :=
-     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Rol_Sgn_Nat,
-      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Rol_Uns_Nat);
+     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Rot_Left_Sgn_Nat,
+      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Rot_Left_Uns_Nat);
 
    Ror_Patterns : constant Shift_Pattern_Type :=
-     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Ror_Sgn_Nat,
-      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Ror_Uns_Nat);
+     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Rot_Right_Sgn_Nat,
+      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Rot_Right_Uns_Nat);
 
    Sll_Patterns : constant Shift_Pattern_Type :=
      (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Sll_Sgn_Int,
@@ -452,6 +567,14 @@ package body Vhdl.Ieee.Numeric is
    Sra_Patterns : constant Shift_Pattern_Type :=
      (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Sra_Sgn_Int,
       Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Sra_Uns_Int);
+
+   Leftmost_Patterns : constant Shift_Pattern_Type :=
+     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Find_Leftmost_Sgn,
+      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Find_Leftmost_Uns);
+
+   Rightmost_Patterns : constant Shift_Pattern_Type :=
+     (Type_Signed   => Iir_Predefined_Ieee_Numeric_Std_Find_Rightmost_Sgn,
+      Type_Unsigned => Iir_Predefined_Ieee_Numeric_Std_Find_Rightmost_Uns);
 
    Error : exception;
 
@@ -646,6 +769,29 @@ package body Vhdl.Ieee.Numeric is
          Set_Implicit_Definition (Decl, Predefined);
       end Handle_Std_Match;
 
+      procedure Handle_To_01
+      is
+         Predefined : Iir_Predefined_Functions;
+      begin
+         if Arg1_Kind /= Arg_Vect
+           or else Arg2_Kind /= Arg_Scal
+           or else Arg2_Sign /= Type_Log
+         then
+            raise Error;
+         end if;
+
+         case Arg1_Sign is
+            when Type_Unsigned =>
+               Predefined := Iir_Predefined_Ieee_Numeric_Std_To_01_Uns;
+            when Type_Signed =>
+               Predefined := Iir_Predefined_Ieee_Numeric_Std_To_01_Sgn;
+            when others =>
+               raise Error;
+         end case;
+
+         Set_Implicit_Definition (Decl, Predefined);
+      end Handle_To_01;
+
       procedure Handle_Shift (Pats : Shift_Pattern_Type; Sh_Sign : Sign_Kind)
       is
          Res : Iir_Predefined_Functions;
@@ -663,6 +809,24 @@ package body Vhdl.Ieee.Numeric is
             Set_Implicit_Definition (Decl, Res);
          end if;
       end Handle_Shift;
+
+      procedure Handle_Find (Pats : Shift_Pattern_Type)
+      is
+         Res : Iir_Predefined_Functions;
+      begin
+         if Arg1_Kind = Arg_Vect
+           and then Arg2_Kind = Arg_Scal
+           and then Arg2_Sign = Type_Log
+         then
+            case Arg1_Sign is
+               when Type_Signed | Type_Unsigned =>
+                  Res := Pats (Arg1_Sign);
+               when others =>
+                  Res := Iir_Predefined_None;
+            end case;
+            Set_Implicit_Definition (Decl, Res);
+         end if;
+      end Handle_Find;
    begin
       Decl := Get_Declaration_Chain (Pkg_Decl);
 
@@ -741,6 +905,10 @@ package body Vhdl.Ieee.Numeric is
                         Handle_Binary (Mul_Patterns);
                      when Name_Op_Div =>
                         Handle_Binary (Div_Patterns);
+                     when Name_Mod =>
+                        Handle_Binary (Mod_Patterns);
+                     when Name_Rem =>
+                        Handle_Binary (Rem_Patterns);
                      when Name_Op_Equality =>
                         Handle_Binary (Eq_Patterns);
                      when Name_Op_Inequality =>
@@ -753,6 +921,10 @@ package body Vhdl.Ieee.Numeric is
                         Handle_Binary (Gt_Patterns);
                      when Name_Op_Greater_Equal =>
                         Handle_Binary (Ge_Patterns);
+                     when Name_Minimum =>
+                        Handle_Binary (Min_Patterns);
+                     when Name_Maximum =>
+                        Handle_Binary (Max_Patterns);
                      when Name_Op_Match_Equality =>
                         Handle_Binary (Match_Eq_Patterns);
                      when Name_Op_Match_Inequality =>
@@ -805,6 +977,12 @@ package body Vhdl.Ieee.Numeric is
                         Handle_Shift (Rol_Patterns, Type_Unsigned);
                      when Name_Rotate_Right =>
                         Handle_Shift (Ror_Patterns, Type_Unsigned);
+                     when Name_Find_Leftmost =>
+                        Handle_Find (Leftmost_Patterns);
+                     when Name_Find_Rightmost =>
+                        Handle_Find (Rightmost_Patterns);
+                     when Name_To_01 =>
+                        Handle_To_01;
                      when others =>
                         null;
                   end case;
@@ -819,6 +997,18 @@ package body Vhdl.Ieee.Numeric is
                         Handle_Unary (Abs_Patterns);
                      when Name_To_Integer =>
                         Handle_To_Integer;
+                     when Name_And =>
+                        Handle_Unary (Red_And_Patterns);
+                     when Name_Nand =>
+                        Handle_Unary (Red_Nand_Patterns);
+                     when Name_Or =>
+                        Handle_Unary (Red_Or_Patterns);
+                     when Name_Nor =>
+                        Handle_Unary (Red_Nor_Patterns);
+                     when Name_Xor =>
+                        Handle_Unary (Red_Xor_Patterns);
+                     when Name_Xnor =>
+                        Handle_Unary (Red_Xnor_Patterns);
                      when others =>
                         null;
                   end case;

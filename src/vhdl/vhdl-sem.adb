@@ -122,7 +122,7 @@ package body Vhdl.Sem is
          Entity := Load_Primary_Unit
            (Library, Get_Identifier (Name), Library_Unit);
          if Entity = Null_Iir then
-            Error_Msg_Sem (+Library_Unit, "entity %n was not analysed", +Name);
+            Error_Msg_Sem (+Name, "entity %n was not analysed", +Name);
             return Null_Iir;
          end if;
          Entity := Get_Library_Unit (Entity);
@@ -184,8 +184,16 @@ package body Vhdl.Sem is
 
       --  Makes the entity name visible.
       --  FIXME: quote LRM.
-      Sem_Scopes.Add_Name
-        (Entity_Library, Get_Identifier (Entity_Library), False);
+      declare
+         Prev_Hide : constant Boolean := Is_Warning_Enabled (Warnid_Hide);
+      begin
+         --  Avoid spurious warning from entity name (if it has the same
+         --   identifier as a library clause).
+         Enable_Warning (Warnid_Hide, False);
+         Sem_Scopes.Add_Name
+           (Entity_Library, Get_Identifier (Entity_Library), False);
+         Enable_Warning (Warnid_Hide, Prev_Hide);
+      end;
 
       --  LRM 10.1 Declarative Region
       --  1. An entity declaration, together with a corresponding architecture
@@ -560,7 +568,7 @@ package body Vhdl.Sem is
             Set_Collapse_Signal_Flag (Assoc, False);
 
             pragma Assert (Is_Null (Get_Actual_Conversion (Assoc)));
-            if Flags.Vhdl_Std >= Vhdl_93c then
+            if Flags.Vhdl_Std >= Vhdl_93 then
                --  LRM93 1.1.1.2 Ports
                --  Moreover, the ports of a block may be associated
                --  with an expression, in order to provide these ports
@@ -656,6 +664,7 @@ package body Vhdl.Sem is
                              True, Miss, Assoc_Parent, Match);
       Set_Port_Map_Aspect_Chain (Assoc_Parent, Assoc_Chain);
       if Match = Not_Compatible then
+         --  TODO: mark actual as used to avoid warnings.
          return;
       end if;
 
@@ -1239,7 +1248,7 @@ package body Vhdl.Sem is
       Binding : Iir;
       Entity : Iir_Design_Unit;
       Comp : Iir_Component_Declaration;
-      Primary_Entity_Aspect : Iir;
+      Primary_Binding : Iir;
    begin
       --  LRM 10.1 Declarative Region
       --  11. A component configuration.
@@ -1267,7 +1276,7 @@ package body Vhdl.Sem is
       end if;
       --  FIXME: this is wrong (all declarations should be considered).
       Sem_Component_Specification
-        (Configured_Block, Conf, Primary_Entity_Aspect);
+        (Configured_Block, Conf, Primary_Binding);
 
       Comp := Get_Named_Entity (Get_Component_Name (Conf));
       if Get_Kind (Comp) /= Iir_Kind_Component_Declaration then
@@ -1289,9 +1298,9 @@ package body Vhdl.Sem is
       Sem_Scopes.Add_Component_Declarations (Comp);
       Binding := Get_Binding_Indication (Conf);
       if Binding /= Null_Iir then
-         Sem_Binding_Indication (Binding, Conf, Primary_Entity_Aspect);
+         Sem_Binding_Indication (Binding, Conf, Primary_Binding);
 
-         if Primary_Entity_Aspect /= Null_Iir then
+         if Primary_Binding /= Null_Iir then
             --  LRM93 5.2.1  Binding Indication
             --  It is an error if a formal port appears in the port map aspect
             --  of the incremental binding indication and it is a formal
@@ -1299,7 +1308,7 @@ package body Vhdl.Sem is
             --  of the primary binding indications.
             Check_Incremental_Binding (Configured_Block, Conf);
          end if;
-      elsif Primary_Entity_Aspect = Null_Iir then
+      elsif Primary_Binding = Null_Iir then
          --  LRM93 5.2.1
          --  If the generic map aspect or port map aspect of a primary binding
          --  indication is not present, then the default rules as described
@@ -1609,6 +1618,16 @@ package body Vhdl.Sem is
            | Iir_Kind_Right_Type_Attribute
            | Iir_Kind_Ascending_Type_Attribute =>
             return Are_Trees_Equal (Get_Prefix (Left), Get_Prefix (Right));
+
+         when Iir_Kind_Length_Array_Attribute
+            | Iir_Kind_Left_Array_Attribute
+            | Iir_Kind_Right_Array_Attribute
+            | Iir_Kind_Low_Array_Attribute
+            | Iir_Kind_High_Array_Attribute
+            | Iir_Kind_Ascending_Array_Attribute =>
+            return Are_Trees_Equal (Get_Prefix (Left), Get_Prefix (Right))
+              and then
+              Are_Trees_Equal (Get_Parameter (Left), Get_Parameter (Right));
 
          when Iir_Kind_String_Literal8 =>
             if Get_Bit_String_Base (Left) /= Get_Bit_String_Base (Right) then
@@ -3140,6 +3159,14 @@ package body Vhdl.Sem is
          Set_Library_Declaration (Decl, Lib);
          Sem_Scopes.Add_Name (Lib, Ident, False);
          Set_Visible_Flag (Lib, True);
+
+         --  Override the location of the library.  Even if the library is
+         --  not really declared by the library clause (it is almost pre-
+         --  declared), it improves error messages.
+         --  Note: library clauses of dependences will overwrite the location,
+         --   defeating the purpose of it.
+         Location_Copy (Lib, Decl);
+
          Xref_Ref (Decl, Lib);
       end if;
    end Sem_Library_Clause;
@@ -3367,6 +3394,12 @@ package body Vhdl.Sem is
       Sem_Scopes.Add_Name (Libraries.Std_Library, Std_Names.Name_Std, False);
       Sem_Scopes.Add_Name (Library, Std_Names.Name_Work, False);
       Sem_Scopes.Use_All_Names (Standard_Package);
+
+      --  Use pre-defined locations for STD and WORK library (as they may
+      --  be later overriden).
+      Set_Location (Libraries.Std_Library, Libraries.Library_Location);
+      Set_Location (Library, Libraries.Library_Location);
+
       if Get_Dependence_List (Design_Unit) = Null_Iir_List then
          Set_Dependence_List (Design_Unit, Create_Iir_List);
       end if;

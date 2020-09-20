@@ -175,7 +175,8 @@ package body Vhdl.Sem_Lib is
       Set_Dependence_List (Design, Null_Iir_List);
    end Free_Dependence_List;
 
-   procedure Load_Parse_Design_Unit (Design_Unit: Iir_Design_Unit; Loc : Iir)
+   procedure Load_Parse_Design_Unit
+     (Design_Unit: Iir_Design_Unit; Loc : Location_Type)
    is
       use Vhdl.Scanner;
       Design_File : constant Iir_Design_File := Get_Design_File (Design_Unit);
@@ -262,19 +263,16 @@ package body Vhdl.Sem_Lib is
       Free_Iir (Res);
    end Load_Parse_Design_Unit;
 
-   procedure Error_Obsolete (Loc : Iir; Msg : String; Args : Earg_Arr) is
+   procedure Error_Obsolete
+     (Loc : Location_Type; Msg : String; Args : Earg_Arr) is
    begin
       if not Flags.Flag_Elaborate_With_Outdated then
-         if Loc = Null_Iir then
-            Error_Msg_Sem (Command_Line_Location, Msg, Args);
-         else
-            Error_Msg_Sem (+Loc, Msg, Args);
-         end if;
+         Error_Msg_Sem (Loc, Msg, Args);
       end if;
    end Error_Obsolete;
 
    --  Check if one of its dependency makes this unit obsolete.
-   function Check_Obsolete_Dependence (Design_Unit : Iir; Loc : Iir)
+   function Check_Obsolete_Dependence (Design_Unit : Iir; Loc : Location_Type)
                                       return Boolean
    is
       List : constant Iir_List := Get_Dependence_List (Design_Unit);
@@ -305,7 +303,8 @@ package body Vhdl.Sem_Lib is
       return False;
    end Check_Obsolete_Dependence;
 
-   procedure Explain_Obsolete (Design_Unit : Iir_Design_Unit; Loc : Iir)
+   procedure Explain_Obsolete
+     (Design_Unit : Iir_Design_Unit; Loc : Location_Type)
    is
       List : Iir_List;
       It : List_Iterator;
@@ -324,7 +323,10 @@ package body Vhdl.Sem_Lib is
       It := List_Iterate (List);
       while Is_Valid (It) loop
          El := Get_Element (It);
-         if Get_Date (El) = Date_Obsolete then
+         --  Just handle design unit; but there could also be entity aspects.
+         if Get_Kind (El) = Iir_Kind_Design_Unit
+           and then Get_Date (El) = Date_Obsolete
+         then
             Error_Obsolete (Loc, "%n is obsoleted by %n", (+Design_Unit, +El));
             return;
          end if;
@@ -333,10 +335,12 @@ package body Vhdl.Sem_Lib is
    end Explain_Obsolete;
 
    -- Load, parse, analyze, back-end a design_unit if necessary.
-   procedure Load_Design_Unit (Design_Unit : Iir_Design_Unit; Loc : Iir)
+   procedure Load_Design_Unit
+     (Design_Unit : Iir_Design_Unit; Loc : Location_Type)
    is
       Prev_Nbr_Errors : Natural;
       Warnings : Warnings_Setting;
+      Error : Boolean;
    begin
       if Get_Date (Design_Unit) = Date_Replacing then
          Error_Msg_Sem (+Loc, "circular reference of %n", +Design_Unit);
@@ -348,9 +352,16 @@ package body Vhdl.Sem_Lib is
       Prev_Nbr_Errors := Errorout.Nbr_Errors;
       Errorout.Nbr_Errors := 0;
 
+      --  Disable all warnings.  Warnings are emitted only when the unit
+      --  is analyzed.
+      Save_Warnings_Setting (Warnings);
+      Disable_All_Warnings;
+
       if Get_Date_State (Design_Unit) = Date_Disk then
          Load_Parse_Design_Unit (Design_Unit, Loc);
       end if;
+
+      Error := False;
 
       if Get_Date_State (Design_Unit) = Date_Parse then
          --  Analyze the design unit.
@@ -364,16 +375,8 @@ package body Vhdl.Sem_Lib is
          --  Avoid infinite recursion, if the unit is self-referenced.
          Set_Date_State (Design_Unit, Date_Analyze);
 
-         --  Disable all warnings.  Warnings are emitted only when the unit
-         --  is analyzed.
-         Save_Warnings_Setting (Warnings);
-         Disable_All_Warnings;
-
          --  Analyze unit.
          Finish_Compilation (Design_Unit);
-
-         --  Restore warnings.
-         Restore_Warnings_Setting (Warnings);
 
          --  Check if one of its dependency makes this unit obsolete.
          --  FIXME: to do when the dependency is added ?
@@ -381,13 +384,20 @@ package body Vhdl.Sem_Lib is
            and then Check_Obsolete_Dependence (Design_Unit, Loc)
          then
             Set_Date (Design_Unit, Date_Obsolete);
-            Errorout.Nbr_Errors := Prev_Nbr_Errors + Errorout.Nbr_Errors;
-            return;
+            Error := True;
          end if;
       end if;
 
       --  Restore nbr_errors (accumulate).
       Errorout.Nbr_Errors := Prev_Nbr_Errors + Errorout.Nbr_Errors;
+
+      --  Restore warnings.
+      Restore_Warnings_Setting (Warnings);
+
+      if Error then
+         --  Return now in case of analyze error.
+         return;
+      end if;
 
       case Get_Date (Design_Unit) is
          when Date_Parsed =>
@@ -411,6 +421,11 @@ package body Vhdl.Sem_Lib is
          when others =>
             raise Internal_Error;
       end case;
+   end Load_Design_Unit;
+
+   procedure Load_Design_Unit (Design_Unit: Iir_Design_Unit; Loc : Iir) is
+   begin
+      Load_Design_Unit (Design_Unit, Get_Location (Loc));
    end Load_Design_Unit;
 
    function Load_Primary_Unit

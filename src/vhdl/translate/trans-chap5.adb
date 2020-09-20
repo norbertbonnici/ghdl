@@ -18,6 +18,7 @@
 
 with Vhdl.Errors; use Vhdl.Errors;
 with Vhdl.Utils; use Vhdl.Utils;
+with Trans.Chap2;
 with Trans.Chap3;
 with Trans.Chap4;
 with Trans.Chap6;
@@ -71,8 +72,7 @@ package body Trans.Chap5 is
       Push_Identifier_Prefix_Uniq (Mark);
       if Is_Anonymous_Type_Definition (Spec_Type) then
          Push_Identifier_Prefix (Mark2, "OT");
-         Chap3.Translate_Subtype_Definition
-           (Spec_Type, Get_Type (Attr), True);
+         Chap3.Translate_Subtype_Definition (Spec_Type, True);
          Pop_Identifier_Prefix (Mark2);
       end if;
 
@@ -100,8 +100,6 @@ package body Trans.Chap5 is
       Expr : constant Iir := Get_Expression (Spec);
       Val    : Iir;
    begin
-      Chap3.Elab_Object_Subtype (Get_Type (Expr));
-
       Val := Get_Attribute_Value_Spec_Chain (Spec);
       while Is_Valid (Val) loop
          Chap4.Elab_Object_Value (Val, Expr);
@@ -323,9 +321,8 @@ package body Trans.Chap5 is
       Res : Connect_Data;
    begin
       --  FIXME: should check matching elements!
-      Res := (Actual_Sig =>
-                Chap3.Index_Base (Chap3.Get_Composite_Base (Data.Actual_Sig),
-                  Data.Actual_Type, New_Obj_Value (Index)),
+      Res := (Actual_Sig => Chap6.Translate_Indexed_Name_By_Offset
+                (Data.Actual_Sig, Data.Actual_Type, Index),
               Actual_Type => Get_Element_Subtype (Data.Actual_Type),
               Mode => Data.Mode,
               By_Copy => Data.By_Copy);
@@ -338,10 +335,14 @@ package body Trans.Chap5 is
    is
       pragma Unreferenced (Formal_Type);
       Res : Connect_Data;
+      Fel : Iir;
    begin
+      Fel := Get_Nth_Element
+        (Get_Elements_Declaration_List (Data.Actual_Type),
+         Natural (Get_Element_Position (El)));
       Res := (Actual_Sig =>
-                Chap6.Translate_Selected_Element (Data.Actual_Sig, El),
-              Actual_Type => Get_Type (El),
+                Chap6.Translate_Selected_Element (Data.Actual_Sig, Fel),
+              Actual_Type => Get_Type (Fel),
               Mode => Data.Mode,
               By_Copy => Data.By_Copy);
       return Res;
@@ -424,19 +425,28 @@ package body Trans.Chap5 is
 
                --  Copy pointer to the values.
                Formal_Tinfo := Get_Info (Formal_Type);
-               if Formal_Tinfo.Type_Mode in Type_Mode_Composite then
-                  --  Need to convert base, as you can assign a bounded type
-                  --  to an unbounded type (or the opposite).  Maybe convert
-                  --  only when needed ?  Subtype matching is checked below.
-                  New_Assign_Stmt
-                    (M2Lp (Chap3.Get_Composite_Base (Formal_Val)),
-                     New_Convert_Ov
-                       (M2Addr
-                          (Chap3.Get_Composite_Unbounded_Base (Actual_Val)),
-                       Formal_Tinfo.B.Base_Ptr_Type (Mode_Value)));
-               else
-                  New_Assign_Stmt (M2Lp (Formal_Val), M2Addr (Actual_Val));
-               end if;
+               --  Need to convert base, as you can assign a bounded type
+               --  to an unbounded type (or the opposite).  Maybe convert
+               --  only when needed ?  Subtype matching is checked below.
+               case Formal_Tinfo.Type_Mode is
+                  when Type_Mode_Unbounded_Array
+                     | Type_Mode_Unbounded_Record =>
+                     New_Assign_Stmt
+                       (M2Lp (Chap3.Get_Composite_Base (Formal_Val)),
+                        New_Convert_Ov
+                          (M2Addr (Chap3.Get_Composite_Base (Actual_Val)),
+                           Formal_Tinfo.B.Base_Ptr_Type (Mode_Value)));
+                  when Type_Mode_Bounded_Arrays
+                     | Type_Mode_Bounded_Records =>
+                     New_Assign_Stmt
+                       (M2Lp (Formal_Val),
+                        New_Convert_Ov
+                          (M2Addr (Chap3.Get_Composite_Base (Actual_Val)),
+                           Formal_Tinfo.Ortho_Ptr_Type (Mode_Value)));
+                  when others =>
+                     New_Assign_Stmt
+                       (M2Lp (Formal_Val), M2Addr (Actual_Val));
+               end case;
             else
                Set_Map_Env (Actual_Env);
                Actual_Sig := Chap6.Translate_Name (Actual, Mode_Signal);
@@ -551,7 +561,7 @@ package body Trans.Chap5 is
             Tinfo := Get_Info (Actual_Type);
             if Save
               and then
-              Get_Alloc_Kind_For_Var (Tinfo.S.Composite_Layout) = Alloc_Stack
+                Chap3.Get_Composite_Type_Layout_Alloc (Tinfo) = Alloc_Stack
             then
                --  We need a copy.
                Bounds_Copy := Alloc_Bounds (Actual_Type, Alloc_System);
@@ -645,6 +655,8 @@ package body Trans.Chap5 is
             declare
                Actual_Type : constant Iir := Get_Actual_Type (Assoc);
             begin
+               Chap3.Translate_Anonymous_Subtype_Definition
+                 (Actual_Type, False);
                Chap3.Create_Composite_Subtype (Actual_Type);
                Bounds := Chap3.Get_Composite_Type_Bounds (Actual_Type);
             end;
@@ -696,9 +708,7 @@ package body Trans.Chap5 is
             if Get_Whole_Association_Flag (Assoc)
               and then Fbt_Info.Type_Mode in Type_Mode_Unbounded
             then
-               Open_Temp;
                Elab_Unconstrained_Port_Bounds (Formal, Assoc);
-               Close_Temp;
             end if;
 
             --  Allocate storage of ports.
@@ -802,15 +812,28 @@ package body Trans.Chap5 is
                   end if;
                end;
             when Iir_Kind_Association_Element_Open =>
-               declare
-                  Value : constant Iir := Get_Default_Value (Formal);
-               begin
-                  pragma Assert (Is_Valid (Value));
-                  Set_Map_Env (Formal_Env);
-                  Chap4.Elab_Object_Value (Formal, Value);
-                  Chap9.Destroy_Types (Value);
-                  Set_Map_Env (Actual_Env);
-               end;
+               case Get_Kind (Formal) is
+                  when Iir_Kind_Interface_Constant_Declaration =>
+                     declare
+                        Value : constant Iir := Get_Default_Value (Formal);
+                     begin
+                        pragma Assert (Is_Valid (Value));
+                        Set_Map_Env (Formal_Env);
+                        Chap4.Elab_Object_Value (Formal, Value);
+                        Chap9.Destroy_Types (Value);
+                        Set_Map_Env (Actual_Env);
+                     end;
+                  when Iir_Kind_Interface_Package_Declaration =>
+                     --  The package interface have generics and implicitly
+                     --  defines an instantiated package.
+                     pragma Assert
+                       (Get_Generic_Map_Aspect_Chain (Formal) /= Null_Iir);
+                     Set_Map_Env (Formal_Env);
+                     Chap2.Elab_Package_Instantiation_Declaration (Formal);
+                     Set_Map_Env (Actual_Env);
+                  when others =>
+                     Error_Kind ("elab_generic_map_aspect(open)", Formal);
+               end case;
             when Iir_Kind_Association_Element_By_Individual =>
                --  Create the object.
                declare
@@ -822,7 +845,7 @@ package body Trans.Chap5 is
                   Bounds      : Mnode;
                begin
                   Set_Map_Env (Formal_Env);
-                  Chap3.Elab_Object_Subtype (Formal_Type);
+                  Chap3.Elab_Object_Subtype_Indication (Formal); -- FIXME?
                   Type_Info := Get_Info (Formal_Type);
                   Formal_Node := Get_Var
                     (Obj_Info.Object_Var, Type_Info, Mode_Value);
@@ -846,12 +869,10 @@ package body Trans.Chap5 is
                     Get_Uninstantiated_Package_Decl (Formal);
                   Uninst_Info : constant Ortho_Info_Acc :=
                     Get_Info (Uninst_Pkg);
-                  Formal_Info : constant Ortho_Info_Acc :=
-                    Get_Info (Formal);
+                  Formal_Info : constant Ortho_Info_Acc := Get_Info (Formal);
                   Actual      : constant Iir := Get_Named_Entity
                     (Get_Actual (Assoc));
-                  Actual_Info : constant Ortho_Info_Acc :=
-                    Get_Info (Actual);
+                  Actual_Info : constant Ortho_Info_Acc := Get_Info (Actual);
                begin
                   New_Assign_Stmt
                     (Get_Var (Formal_Info.Package_Instance_Spec_Var),

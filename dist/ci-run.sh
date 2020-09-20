@@ -82,17 +82,17 @@ echo "cliargs: $0 $@"
 set -e
 
 ISGPL=false
-ISSYNTH=false
+ISSYNTH=true
 
 # Transform long options to short ones
 for arg in "$@"; do
   shift
   case "$arg" in
-      "--color"|"-color")     set -- "$@" "-c";;
-      "--backend"|"-backend") set -- "$@" "-b";;
-      "--pkg"|"-pkg")         set -- "$@" "-p";;
-      "--gpl"|"-gpl")         set -- "$@" "-g";;
-      "--synth"|"-synth")     set -- "$@" "-s";;
+      "--color"|"-color")       set -- "$@" "-c";;
+      "--backend"|"-backend")   set -- "$@" "-b";;
+      "--pkg"|"-pkg")           set -- "$@" "-p";;
+      "--gpl"|"-gpl")           set -- "$@" "-g";;
+      "--no-synth"|"-no-synth") set -- "$@" "-s";;
     *) set -- "$@" "$arg"
   esac
 done
@@ -103,7 +103,7 @@ while getopts ":b:p:cgs" opt; do
     b) BACK=$OPTARG ;;
     p) PKG_NAME=$OPTARG;;
     g) ISGPL=true;;
-    s) ISSYNTH=true;;
+    s) ISSYNTH=false;;
     \?) printf "$ANSI_RED[CI - args] Invalid option: -$OPTARG $ANSI_NOCOLOR\n" >&2
         exit 1 ;;
     :)  printf "$ANSI_RED[CI - args] Option -$OPTARG requires an argument. $ANSI_NOCOLOR\n" >&2
@@ -125,16 +125,17 @@ notag() {
 
 vertag() {
   if expr "$1" : 'v[0-9].*' > /dev/null; then
-    # Remove leading 'v' in tags in the filenames.
-    echo $1 | cut -c2-
     # Check version defined in configure.
-    if [ "x$1" != "x`grep "^ghdl_version=" configure | sed -e 's/.*"\(.*\)";/\1/'`" ]; then
-      printf "${ANSI_RED}Tag '$1' does not match 'ghdl_version'!${ANSI_NOCOLOR}\n" 1>&2;
+    cfgver=`grep "^ghdl_version=" configure | sed -e 's/.*"\(.*\)"/\1/'`
+    if [ "x$1" != "xv$cfgver" ]; then
+      printf "${ANSI_RED}Tag '$1' does not match configure 'ghdl_version' ($cfgver)!${ANSI_NOCOLOR}\n" 1>&2;
       exit 1
     fi
+    # Remove leading 'v' in tags in the filenames.
+    echo $1 | cut -c2-
   else
     # Regular tag (like snapshots), nothing to change.
-    echo "$2"
+    echo "$1"
   fi
 }
 
@@ -162,7 +163,7 @@ buildCmdOpts () {
   # Compute package name
   case "$GITHUB_REF" in
     *tags*)
-      PKG_TAG="$(vertag "`echo "$GITHUB_REF" | sed 's#^refs/tags/\(.*\)#\1#g'`" "$GITHUB_REF")"
+      PKG_TAG="$(vertag "`echo "$GITHUB_REF" | sed 's#^refs/tags/\(.*\)#\1#g'`")"
     ;;
     *heads*|*pull*)
       PKG_TAG="`notag`"
@@ -171,7 +172,7 @@ buildCmdOpts () {
       if [ -z "$TRAVIS_TAG" ]; then
         PKG_TAG="`notag`"
       else
-        PKG_TAG="`vertag "$TRAVIS_TAG" "$TRAVIS_TAG"`"
+        PKG_TAG="`vertag "$TRAVIS_TAG"`"
       fi
     ;;
     *)
@@ -194,11 +195,6 @@ buildCmdOpts () {
       BUILD_CMD_OPTS="$BUILD_CMD_OPTS --gpl"
       PKG_NAME="${PKG_NAME}-gpl"
       DEXT="-gpl"
-  fi
-  if [ "x$ISSYNTH" = "xtrue" ]; then
-      BUILD_CMD_OPTS="$BUILD_CMD_OPTS --synth"
-      PKG_NAME="${PKG_NAME}-synth"
-      DEXT="-synth"
   fi
   export BUILD_CMD_OPTS="${BUILD_CMD_OPTS} -p $PKG_NAME"
 
@@ -253,8 +249,8 @@ build () {
   mkdir "build-$BACK"
   cd "build-$BACK"
 
-  if [ "x$ISSYNTH" = "xtrue" ]; then
-    CONFIG_OPTS+=" --enable-synth"
+  if [ "x$ISSYNTH" = "xfalse" ]; then
+    CONFIG_OPTS+=" --disable-synth"
   fi
 
   case "$BACK" in
@@ -285,7 +281,7 @@ build () {
           CXX=""
       ;;
       llvm)
-          CXX="clang"
+          CXX="clang++"
           CONFIG_OPTS+=" --with-llvm-config CXX=$CXX"
       ;;
       llvm-3.5)
@@ -406,21 +402,12 @@ ci_run () {
   else
       # Assume linux
 
-      gstart "[CI] Build version.tmp and replace version.in with it (so that the version is correctly set)" "$ANSI_BLUE"
-      # This is a little bit hack-ish, as it assumes that 'git' is not
-      # available in docker (otherwise it will describe as -dirty
-      # because this modifies the source file version.in).
-      ghdl_version_line=`grep -e '^ghdl_version' configure`
-      make -f Makefile.in srcdir=. $ghdl_version_line version.tmp
-      cp version.tmp src/version.in
-      gend
-
       gstart "[CI] Docker pull ghdl/build:$BUILD_IMAGE_TAG" "$ANSI_BLUE"
       docker pull ghdl/build:$BUILD_IMAGE_TAG
       gend
 
       printf "$ANSI_BLUE[CI] Build ghdl in docker image ghdl/build:$BUILD_IMAGE_TAG\n"
-      $RUN -e CONFIG_OPTS="$CONFIG_OPTS" "ghdl/build:$BUILD_IMAGE_TAG" bash -c "${scriptdir}/ci-run.sh $BUILD_CMD_OPTS build"
+      $RUN -e GHDL_DESC="$(git describe --dirty)@${BUILD_IMAGE_TAG}" -e CONFIG_OPTS="$CONFIG_OPTS" "ghdl/build:$BUILD_IMAGE_TAG" bash -c "${scriptdir}/ci-run.sh $BUILD_CMD_OPTS build"
   fi
 
   if [ ! -f build_ok ]; then
@@ -433,7 +420,7 @@ ci_run () {
   if [ "x$IS_MACOS" = "xtrue" ]; then
       CC=clang \
       prefix="`cd ./install-mcode; pwd`/usr/local" \
-      ./testsuite/testsuite.sh sanity gna vests
+      ./testsuite/testsuite.sh sanity gna vests vpi
   else
       # Build ghdl/ghdl:$GHDL_IMAGE_TAG image
       build_img_ghdl
@@ -446,6 +433,7 @@ ci_run () {
       if [ "x$ISSYNTH" = "xtrue" ]; then
         tests="$tests synth"
       fi
+      tests="$tests vpi"
       $RUN "ghdl/ghdl:$GHDL_IMAGE_TAG" bash -c "GHDL=ghdl ./testsuite/testsuite.sh $tests"
   fi
 

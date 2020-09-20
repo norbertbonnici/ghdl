@@ -391,38 +391,42 @@ package body Ghdlprint is
             when Tok_Across .. Tok_Tolerance =>
                Disp_Reserved;
             when Tok_Psl_Clock
-              | Tok_Psl_Endpoint
-              | Tok_Psl_Boolean
-              | Tok_Psl_Const
-              | Tok_Inf
-              | Tok_Within
-              | Tok_Abort
-              | Tok_Before
-              | Tok_Before_Em
-              | Tok_Before_Un
-              | Tok_Before_Em_Un
-              | Tok_Until_Em
-              | Tok_Until_Un
-              | Tok_Until_Em_Un
-              | Tok_Always
-              | Tok_Never
-              | Tok_Eventually_Em
-              | Tok_Next_Em
-              | Tok_Next_A
-              | Tok_Next_A_Em
-              | Tok_Next_E
-              | Tok_Next_E_Em
-              | Tok_Next_Event
-              | Tok_Next_Event_Em
-              | Tok_Next_Event_A
-              | Tok_Next_Event_A_Em
-              | Tok_Next_Event_E_Em
-              | Tok_Next_Event_E =>
+               | Tok_Psl_Endpoint
+               | Tok_Psl_Boolean
+               | Tok_Psl_Const
+               | Tok_Inf
+               | Tok_Within
+               | Tok_Abort
+               | Tok_Before
+               | Tok_Before_Em
+               | Tok_Before_Un
+               | Tok_Before_Em_Un
+               | Tok_Until_Em
+               | Tok_Until_Un
+               | Tok_Until_Em_Un
+               | Tok_Always
+               | Tok_Never
+               | Tok_Eventually_Em
+               | Tok_Next_Em
+               | Tok_Next_A
+               | Tok_Next_A_Em
+               | Tok_Next_E
+               | Tok_Next_E_Em
+               | Tok_Next_Event
+               | Tok_Next_Event_Em
+               | Tok_Next_Event_A
+               | Tok_Next_Event_A_Em
+               | Tok_Next_Event_E_Em
+               | Tok_Next_Event_E
+               | Tok_Prev
+               | Tok_Stable
+               | Tok_Rose
+               | Tok_Fell =>
                Disp_Spaces;
                Disp_Text;
             when Tok_String
-              | Tok_Bit_String
-              | Tok_Character =>
+               | Tok_Bit_String
+               | Tok_Character =>
                Disp_Spaces;
                case Html_Format is
                   when Html_2 =>
@@ -548,7 +552,7 @@ package body Ghdlprint is
    function Decode_Command (Cmd : Command_Chop; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Chop) return String;
-   procedure Perform_Action (Cmd : Command_Chop;
+   procedure Perform_Action (Cmd : in out Command_Chop;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Chop; Name : String)
@@ -556,17 +560,21 @@ package body Ghdlprint is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--chop";
+      return
+        Name = "chop" or else
+        Name = "--chop";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Chop) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--chop [OPTS] FILEs  Chop FILEs";
+      return "chop [OPTS] FILEs"
+        & ASCII.LF & "  Chop FILEs"
+        & ASCII.LF & "  alias: --chop";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Chop; Args : Argument_List)
+   procedure Perform_Action (Cmd : in out Command_Chop; Args : Argument_List)
    is
       pragma Unreferenced (Cmd);
       use Ada.Characters.Latin_1;
@@ -846,7 +854,7 @@ package body Ghdlprint is
    function Decode_Command (Cmd : Command_Lines; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Lines) return String;
-   procedure Perform_Action (Cmd : Command_Lines;
+   procedure Perform_Action (Cmd : in out Command_Lines;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Lines; Name : String)
@@ -854,17 +862,21 @@ package body Ghdlprint is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--lines";
+      return
+        Name = "lines" or else
+        Name = "--lines";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Lines) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--lines FILEs      Precede line with its number";
+      return "lines FILEs"
+        & ASCII.LF & "  Precede line with its number"
+        & ASCII.LF & "  alias: --lines";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Lines; Args : Argument_List)
+   procedure Perform_Action (Cmd : in out Command_Lines; Args : Argument_List)
    is
       pragma Unreferenced (Cmd);
       use Vhdl.Scanner;
@@ -965,6 +977,7 @@ package body Ghdlprint is
       Flag_Sem : Boolean := True;
       Flag_Format : Boolean := False;
       Flag_Indent : Boolean := False;
+      Flag_Force : Boolean := False;
       First_Line : Positive := 1;
       Last_Line : Positive := Positive'Last;
    end record;
@@ -975,7 +988,7 @@ package body Ghdlprint is
                             Option : String;
                             Arg : String;
                             Res : out Option_State);
-   procedure Perform_Action (Cmd : Command_Reprint;
+   procedure Perform_Action (Cmd : in out Command_Reprint;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Reprint; Name : String)
@@ -983,14 +996,18 @@ package body Ghdlprint is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--reprint";
+      return
+        Name = "reprint" or else
+        Name = "--reprint";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Reprint) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--reprint [OPTS] FILEs    Redisplay FILEs";
+      return "reprint [OPTS] FILEs"
+        & ASCII.LF & "  Redisplay FILEs"
+        & ASCII.LF & "  alias: --reprint";
    end Get_Short_Help;
 
    procedure Decode_Option (Cmd : in out Command_Reprint;
@@ -1010,6 +1027,9 @@ package body Ghdlprint is
       elsif Option = "--indent" then
          Cmd.Flag_Format := False;
          Cmd.Flag_Indent := True;
+         Res := Option_Ok;
+      elsif Option = "--force" then
+         Cmd.Flag_Force := True;
          Res := Option_Ok;
       elsif Option'Length > 8 and then Option (1 .. 8) = "--range=" then
          declare
@@ -1038,7 +1058,7 @@ package body Ghdlprint is
       end if;
    end Decode_Option;
 
-   procedure Perform_Action (Cmd : Command_Reprint;
+   procedure Perform_Action (Cmd : in out Command_Reprint;
                              Args : Argument_List)
    is
       Design_File : Iir_Design_File;
@@ -1066,7 +1086,7 @@ package body Ghdlprint is
          Id := Name_Table.Get_Identifier (Args (I).all);
          Design_File := Load_File_Name (Id);
          if Design_File = Null_Iir
-           or else Errorout.Nbr_Errors > 0
+           or else (Errorout.Nbr_Errors > 0 and not Cmd.Flag_Force)
          then
             raise Errorout.Compilation_Error;
          end if;
@@ -1085,10 +1105,12 @@ package body Ghdlprint is
             end if;
 
             Next_Unit := Get_Chain (Unit);
+            if not (Cmd.Flag_Format or Cmd.Flag_Indent)
+              and then (Errorout.Nbr_Errors = 0 or Cmd.Flag_Force)
+            then
+               Vhdl.Prints.Disp_Vhdl (Unit);
+            end if;
             if Errorout.Nbr_Errors = 0 then
-               if not (Cmd.Flag_Format or Cmd.Flag_Indent) then
-                  Vhdl.Prints.Disp_Vhdl (Unit);
-               end if;
                if Cmd.Flag_Sem then
                   Set_Chain (Unit, Null_Iir);
                   Libraries.Add_Design_Unit_Into_Library (Unit);
@@ -1116,7 +1138,7 @@ package body Ghdlprint is
    function Decode_Command (Cmd : Command_Compare_Tokens; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Compare_Tokens) return String;
-   procedure Perform_Action (Cmd : Command_Compare_Tokens;
+   procedure Perform_Action (Cmd : in out Command_Compare_Tokens;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Compare_Tokens; Name : String)
@@ -1124,17 +1146,21 @@ package body Ghdlprint is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--compare-tokens";
+      return
+        Name = "cmp-tokens" or else
+        Name = "--compare-tokens";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Compare_Tokens) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--compare-tokens [OPTS] REF FILEs    Compare FILEs with REF";
+      return "cmp-tokens [OPTS] REF FILEs"
+        & ASCII.LF & "  Compare FILEs with REF"
+        & ASCII.LF & "  alias: --compare-tokens";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Compare_Tokens;
+   procedure Perform_Action (Cmd : in out Command_Compare_Tokens;
                              Args : Argument_List)
    is
       pragma Unreferenced (Cmd);
@@ -1243,7 +1269,7 @@ package body Ghdlprint is
    function Decode_Command (Cmd : Command_PP_Html; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_PP_Html) return String;
-   procedure Perform_Action (Cmd : Command_PP_Html;
+   procedure Perform_Action (Cmd : in out Command_PP_Html;
                              Files : Argument_List);
 
    function Decode_Command (Cmd : Command_PP_Html; Name : String)
@@ -1251,17 +1277,21 @@ package body Ghdlprint is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--pp-html";
+      return
+        Name = "pp-html" or else
+        Name = "--pp-html";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_PP_Html) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--pp-html FILEs    Pretty-print FILEs in HTML";
+      return "pp-html FILEs"
+        & ASCII.LF & "  Pretty-print FILEs in HTML"
+        & ASCII.LF & "  alias: --pp-html";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_PP_Html;
+   procedure Perform_Action (Cmd : in out Command_PP_Html;
                              Files : Argument_List)
    is
       pragma Unreferenced (Cmd);
@@ -1314,7 +1344,7 @@ package body Ghdlprint is
                             Res : out Option_State);
    procedure Disp_Long_Help (Cmd : Command_Xref_Html);
 
-   procedure Perform_Action (Cmd : Command_Xref_Html;
+   procedure Perform_Action (Cmd : in out Command_Xref_Html;
                              Files_Name : Argument_List);
 
    function Decode_Command (Cmd : Command_Xref_Html; Name : String)
@@ -1322,14 +1352,18 @@ package body Ghdlprint is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--xref-html";
+      return
+        Name = "xref-html" or else
+        Name = "--xref-html";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Xref_Html) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--xref-html FILEs  Display FILEs in HTML with xrefs";
+      return "xref-html FILEs"
+        & ASCII.LF & "  Display FILEs in HTML with xrefs"
+        & ASCII.LF & "  alias: --xref-html";
    end Get_Short_Help;
 
    procedure Decode_Option (Cmd : in out Command_Xref_Html;
@@ -1346,6 +1380,7 @@ package body Ghdlprint is
          end if;
       elsif Option = "--check-missing" then
          Cmd.Check_Missing := True;
+         Enable_Warning (Warnid_Missing_Xref, True);
          Res := Option_Ok;
       else
          Decode_Option (Command_Html (Cmd), Option, Arg, Res);
@@ -1373,7 +1408,7 @@ package body Ghdlprint is
               | Date_Disk =>
                raise Internal_Error;
             when Date_Parse =>
-               Vhdl.Sem_Lib.Load_Design_Unit (Unit, Unit);
+               Vhdl.Sem_Lib.Load_Design_Unit (Unit, Get_Location (Unit));
                if Errorout.Nbr_Errors /= 0 then
                   raise Compilation_Error;
                end if;
@@ -1385,7 +1420,7 @@ package body Ghdlprint is
    end Analyze_Design_File_Units;
 
    procedure Perform_Action
-     (Cmd : Command_Xref_Html; Files_Name : Argument_List)
+     (Cmd : in out Command_Xref_Html; Files_Name : Argument_List)
    is
       use GNAT.Directory_Operations;
 
@@ -1621,7 +1656,7 @@ package body Ghdlprint is
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Xref) return String;
 
-   procedure Perform_Action (Cmd : Command_Xref;
+   procedure Perform_Action (Cmd : in out Command_Xref;
                              Files_Name : Argument_List);
 
    function Decode_Command (Cmd : Command_Xref; Name : String)
@@ -1629,18 +1664,22 @@ package body Ghdlprint is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--xref";
+      return
+        Name = "xref" or else
+        Name = "--xref";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Xref) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--xref FILEs  Generate xrefs";
+      return "xref FILEs"
+        & ASCII.LF & "  Generate xrefs"
+        & ASCII.LF & "  alias: --xref";
    end Get_Short_Help;
 
    procedure Perform_Action
-     (Cmd : Command_Xref; Files_Name : Argument_List)
+     (Cmd : in out Command_Xref; Files_Name : Argument_List)
    is
       pragma Unreferenced (Cmd);
 

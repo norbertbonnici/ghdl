@@ -35,6 +35,7 @@ package Vhdl.Disp_Tree is
    function Image_Iir_Delay_Mechanism (Mech : Iir_Delay_Mechanism)
                                       return String;
    function Image_Iir_Mode (Mode : Iir_Mode) return String;
+   function Image_Iir_Force_Mode (Mode : Iir_Force_Mode) return String;
    function Image_Iir_Signal_Kind (Kind : Iir_Signal_Kind) return String;
    function Image_Iir_Pure_State (State : Iir_Pure_State) return String;
    function Image_Iir_All_Sensitized (Sig : Iir_All_Sensitized)
@@ -47,7 +48,8 @@ package Vhdl.Disp_Tree is
    function Image_Iir_Predefined_Functions (F : Iir_Predefined_Functions)
                                            return String;
    function Image_Location_Type (Loc : Location_Type) return String;
-   function Image_Iir_Direction (Dir : Iir_Direction) return String;
+   function Image_Direction_Type (Dir : Direction_Type) return String;
    function Image_Token_Type (Tok : Vhdl.Tokens.Token_Type) return String;
    function Image_String8 (N : Iir) return String;
+   function Image_Scalar_Size (Sz : Scalar_Size) return String;
 end Vhdl.Disp_Tree;

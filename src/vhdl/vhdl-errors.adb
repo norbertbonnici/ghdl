@@ -110,6 +110,8 @@ package body Vhdl.Errors is
       Report_Msg (Msgid_Error, Semantic, +Loc, Msg, (1 => Arg1));
    end Error_Msg_Sem;
 
+   Relaxed_Hint_Done : Boolean := False;
+
    procedure Error_Msg_Relaxed (Origin : Report_Origin;
                                 Id : Msgid_Warnings;
                                 Msg : String;
@@ -118,7 +120,7 @@ package body Vhdl.Errors is
    is
       Level : Msgid_Type;
    begin
-      if Flag_Relaxed_Rules or Vhdl_Std = Vhdl_93c then
+      if Flag_Relaxed_Rules then
          if not Is_Warning_Enabled (Id) then
             return;
          end if;
@@ -127,6 +129,14 @@ package body Vhdl.Errors is
          Level := Msgid_Error;
       end if;
       Report_Msg (Level, Origin, +Loc, Msg, Args);
+      if not Relaxed_Hint_Done and then Level = Msgid_Error then
+         Report_Msg
+           (Msgid_Note, Origin, +Loc,
+            "(you can use -frelaxed to turn this error into a warning)");
+         --  Emit the message only once, although it applies for many error.
+         --  Maybe do it once per Id ?
+         Relaxed_Hint_Done := True;
+      end if;
    end Error_Msg_Relaxed;
 
    procedure Error_Msg_Sem_Relaxed (Loc : Iir;
@@ -772,6 +782,14 @@ package body Vhdl.Errors is
             return "PSL restrict";
          when Iir_Kind_Psl_Default_Clock =>
             return "PSL default clock";
+         when Iir_Kind_Psl_Prev =>
+            return "PSL prev function";
+         when Iir_Kind_Psl_Stable =>
+            return "PSL stable function";
+         when Iir_Kind_Psl_Rose =>
+            return "PSL rose function";
+         when Iir_Kind_Psl_Fell =>
+            return "PSL fell function";
 
          when Iir_Kind_If_Statement =>
             return Disp_Label (Node, "if statement");
@@ -793,6 +811,10 @@ package body Vhdl.Errors is
          when Iir_Kind_Selected_Waveform_Assignment_Statement =>
             return Disp_Label
               (Node, "selected waveform assignment statement");
+         when Iir_Kind_Signal_Force_Assignment_Statement =>
+            return Disp_Label (Node, "signal force assignment");
+         when Iir_Kind_Signal_Release_Assignment_Statement =>
+            return Disp_Label (Node, "signal release assignment");
          when Iir_Kind_Variable_Assignment_Statement =>
             return Disp_Label (Node, "variable assignment statement");
          when Iir_Kind_Conditional_Variable_Assignment_Statement =>
@@ -876,6 +898,7 @@ package body Vhdl.Errors is
       use Ada.Strings.Unbounded;
       Res : Unbounded_String;
 
+      --  Cf code in evaluation for 'instance_name ?
       procedure Append_Type (Def : Iir)
       is
          use Name_Table;
@@ -1085,7 +1108,7 @@ package body Vhdl.Errors is
    begin
       case Format is
          when 'i' =>
-            Output_Identifier (Get_Identifier (N));
+            Output_Quoted_Identifier (Get_Identifier (N));
          when 'l' =>
             Output_Location (Err, Get_Location (N));
          when 'n' =>

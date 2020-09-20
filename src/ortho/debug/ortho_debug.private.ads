@@ -29,6 +29,12 @@ private
    --  This back-end supports nested subprograms.
    Has_Nested_Subprograms : constant Boolean := True;
 
+   --  Return the type of elements of array type/subtype ATYPE.
+   function Get_Array_El_Type (Atype : O_Tnode) return O_Tnode;
+
+   --  Return the base type of T.
+   --  function Get_Base_Type (T : O_Tnode) return O_Tnode;
+
    --  A node for a type.
    type O_Tnode_Type (<>);
    type O_Tnode is access O_Tnode_Type;
@@ -111,8 +117,6 @@ private
       Ident : O_Ident;
       --  Type of the record field.
       Ftype : O_Tnode;
-      --  Offset in the field.
-      Offset : Unsigned_32;
    end record;
 
    type O_Anode_Type;
@@ -132,10 +136,12 @@ private
       OC_Enum_Lit,
       OC_Null_Lit,
       OC_Sizeof_Lit,
+      OC_Record_Sizeof_Lit,
       OC_Alignof_Lit,
       OC_Offsetof_Lit,
       OC_Default_Lit,
-      OC_Aggregate,
+      OC_Array_Aggregate,
+      OC_Record_Aggregate,
       OC_Aggr_Element,
       OC_Union_Aggr,
       OC_Address,
@@ -166,12 +172,16 @@ private
          when OC_Default_Lit =>
             null;
          when OC_Sizeof_Lit
-           | OC_Alignof_Lit =>
+            | OC_Record_Sizeof_Lit
+            | OC_Alignof_Lit =>
             S_Type : O_Tnode;
          when OC_Offsetof_Lit =>
             Off_Field : O_Fnode;
-         when OC_Aggregate =>
-            Aggr_Els : O_Cnode;
+         when OC_Array_Aggregate =>
+            Arr_Len : Unsigned_32;
+            Arr_Els : O_Cnode;
+         when OC_Record_Aggregate =>
+            Rec_Els : O_Cnode;
          when OC_Union_Aggr =>
             Uaggr_Field : O_Fnode;
             Uaggr_Value : O_Cnode;
@@ -223,6 +233,7 @@ private
 
       --  Misc.
       OE_Convert_Ov,
+      OE_Convert,
       OE_Address,
       OE_Unchecked_Address,
       OE_Alloca,
@@ -257,7 +268,8 @@ private
          when OE_Address
            | OE_Unchecked_Address =>
             Lvalue : O_Lnode;
-         when OE_Convert_Ov =>
+         when OE_Convert_Ov
+            | OE_Convert =>
             Conv : O_Enode;
          when OE_Function_Call =>
             Func : O_Dnode;
@@ -336,14 +348,22 @@ private
    O_Tnode_Null : constant O_Tnode := null;
    type ON_Type_Kind is
      (ON_Boolean_Type, ON_Enum_Type,
-      ON_Unsigned_Type, ON_Signed_Type, ON_Float_Type, ON_Array_Type,
-      ON_Array_Sub_Type, ON_Record_Type, ON_Union_Type, ON_Access_Type);
+      ON_Unsigned_Type, ON_Signed_Type, ON_Float_Type,
+      ON_Array_Type, ON_Array_Subtype,
+      ON_Record_Type, ON_Record_Subtype,
+      ON_Union_Type, ON_Access_Type);
+
+   subtype ON_Array_Kinds is ON_Type_Kind
+     range ON_Array_Type .. ON_Array_Subtype;
+
    type O_Tnode_Type (Kind : ON_Type_Kind) is record
       Decl : O_Dnode;
       --  True if the type was first created as an uncomplete type.
       Uncomplete : Boolean;
       --  True if the type is complete.
       Complete : Boolean;
+      --  True if the type is fully constrained.
+      Constrained : Boolean;
       case Kind is
          when ON_Boolean_Type =>
             True_N : O_Cnode;
@@ -356,17 +376,21 @@ private
          when ON_Enum_Type =>
             Nbr : Natural;
             Literals: O_Cnode;
+         when ON_Access_Type =>
+            D_Type : O_Tnode;
          when ON_Array_Type =>
             El_Type : O_Tnode;
             Index_Type : O_Tnode;
-         when ON_Access_Type =>
-            D_Type : O_Tnode;
+         when ON_Array_Subtype =>
+            Length : O_Cnode;
+            Arr_El_Type : O_Tnode;
+            Arr_Base : O_Tnode;
          when ON_Record_Type
            | ON_Union_Type =>
-            Elements : O_Fnode;
-         when ON_Array_Sub_Type =>
-            Length : O_Cnode;
-            Base_Type : O_Tnode;
+            Rec_Elements : O_Fnode;
+         when ON_Record_Subtype =>
+            Subrec_Elements : O_Fnode;
+            Subrec_Base : O_Tnode;
       end case;
    end record;
 
@@ -447,6 +471,15 @@ private
       Res : O_Tnode;
       --  The last element added.
       Last : O_Fnode;
+   end record;
+
+   type O_Element_Sublist is record
+      --  The type definition.
+      Res : O_Tnode;
+      --  The last element added.
+      Last : O_Fnode;
+      --  The correspond field from the base type.
+      Base_Field : O_Fnode;
    end record;
 
    type O_Record_Aggr_List is record

@@ -237,9 +237,10 @@ package body Vhdl.Prints is
            | Iir_Kind_Constant_Declaration
            | Iir_Kind_Signal_Declaration
            | Iir_Kind_Guard_Signal_Declaration
+           | Iir_Kind_Anonymous_Signal_Declaration
            | Iir_Kind_Variable_Declaration
-           | Iir_Kind_Type_Declaration
            | Iir_Kind_File_Declaration
+           | Iir_Kind_Type_Declaration
            | Iir_Kind_Subtype_Declaration
            | Iir_Kind_Element_Declaration
            | Iir_Kind_Record_Element_Constraint
@@ -321,7 +322,7 @@ package body Vhdl.Prints is
                else
                   Print (Ctxt, Or_Else (Get_Left_Limit_Expr (Rng),
                                         Get_Left_Limit (Rng)));
-                  if Get_Direction (Rng) = Iir_To then
+                  if Get_Direction (Rng) = Dir_To then
                      Disp_Token (Ctxt, Tok_To);
                   else
                      Disp_Token (Ctxt, Tok_Downto);
@@ -1958,7 +1959,8 @@ package body Vhdl.Prints is
             end;
          when N_Name_Decl =>
             Disp_Ident (Ctxt, Get_Identifier (N));
-         when N_HDL_Expr =>
+         when N_HDL_Expr
+           | N_HDL_Bool =>
             Print (Ctxt, Vhdl_Node (PSL.Nodes.Get_HDL_Node (N)));
             --  FIXME: this is true only when using the scanner.
             --  Print_Expr (Node (Get_HDL_Node (N)));
@@ -2265,6 +2267,72 @@ package body Vhdl.Prints is
       Close_Hbox (Ctxt);
    end Disp_Psl_Default_Clock;
 
+   procedure Disp_Psl_Prev (Ctxt : in out Ctxt_Class; Call : Iir)
+   is
+      Expr : Iir;
+   begin
+      Disp_Token (Ctxt, Tok_Prev);
+      Disp_Token (Ctxt, Tok_Left_Paren);
+      Print (Ctxt, Get_Expression (Call));
+      Expr := Get_Count_Expression (Call);
+      if Expr /= Null_Iir then
+         Disp_Token (Ctxt, Tok_Comma);
+         Print (Ctxt, Expr);
+
+         Expr := Get_Clock_Expression (Call);
+         if Expr /= Null_Iir then
+            Disp_Token (Ctxt, Tok_Comma);
+            Print (Ctxt, Expr);
+         end if;
+      end if;
+      Disp_Token (Ctxt, Tok_Right_Paren);
+   end Disp_Psl_Prev;
+
+   procedure Disp_Psl_Stable (Ctxt : in out Ctxt_Class; Call : Iir)
+   is
+      Expr : Iir;
+   begin
+      Disp_Token (Ctxt, Tok_Stable);
+      Disp_Token (Ctxt, Tok_Left_Paren);
+      Print (Ctxt, Get_Expression (Call));
+      Expr := Get_Clock_Expression (Call);
+      if Expr /= Null_Iir then
+         Disp_Token (Ctxt, Tok_Comma);
+         Print (Ctxt, Expr);
+      end if;
+      Disp_Token (Ctxt, Tok_Right_Paren);
+   end Disp_Psl_Stable;
+
+   procedure Disp_Psl_Rose (Ctxt : in out Ctxt_Class; Call : Iir)
+   is
+      Expr : Iir;
+   begin
+      Disp_Token (Ctxt, Tok_Rose);
+      Disp_Token (Ctxt, Tok_Left_Paren);
+      Print (Ctxt, Get_Expression (Call));
+      Expr := Get_Clock_Expression (Call);
+      if Expr /= Null_Iir then
+         Disp_Token (Ctxt, Tok_Comma);
+         Print (Ctxt, Expr);
+      end if;
+      Disp_Token (Ctxt, Tok_Right_Paren);
+   end Disp_Psl_Rose;
+
+   procedure Disp_Psl_Fell (Ctxt : in out Ctxt_Class; Call : Iir)
+   is
+      Expr : Iir;
+   begin
+      Disp_Token (Ctxt, Tok_Fell);
+      Disp_Token (Ctxt, Tok_Left_Paren);
+      Print (Ctxt, Get_Expression (Call));
+      Expr := Get_Clock_Expression (Call);
+      if Expr /= Null_Iir then
+         Disp_Token (Ctxt, Tok_Comma);
+         Print (Ctxt, Expr);
+      end if;
+      Disp_Token (Ctxt, Tok_Right_Paren);
+   end Disp_Psl_Fell;
+
    procedure Disp_Psl_Declaration (Ctxt : in out Ctxt_Class; Stmt : Iir)
    is
       Decl : constant PSL_Node := Get_Psl_Declaration (Stmt);
@@ -2393,7 +2461,14 @@ package body Vhdl.Prints is
             when Iir_Kind_Signal_Attribute_Declaration =>
                null;
             when Iir_Kind_Anonymous_Signal_Declaration =>
-               null;
+               if False then
+                  --  Disabled as it is not part of the sources.
+                  Start_Hbox (Ctxt);
+                  Disp_Token (Ctxt, Tok_Signal);
+                  Disp_Ident (Ctxt, Get_Identifier (Decl));
+                  Disp_Token (Ctxt, Tok_Semi_Colon);
+                  Close_Hbox (Ctxt);
+               end if;
             when Iir_Kind_Group_Template_Declaration =>
                Disp_Group_Template_Declaration (Ctxt, Decl);
             when Iir_Kind_Group_Declaration =>
@@ -3006,6 +3081,18 @@ package body Vhdl.Prints is
       Disp_End_Label (Ctxt, Stmt, Tok_Loop);
    end Disp_For_Loop_Statement;
 
+   procedure Disp_Force_Mode_Opt (Ctxt : in out Ctxt_Class; Stmt : Iir) is
+   begin
+      if Get_Has_Force_Mode (Stmt) then
+         case Get_Force_Mode (Stmt) is
+            when Iir_Force_In =>
+               Disp_Token (Ctxt, Tok_In);
+            when Iir_Force_Out =>
+               Disp_Token (Ctxt, Tok_Out);
+         end case;
+      end if;
+   end Disp_Force_Mode_Opt;
+
    procedure Disp_Sequential_Statements (Ctxt : in out Ctxt_Class; First : Iir)
    is
       Stmt: Iir;
@@ -3047,6 +3134,25 @@ package body Vhdl.Prints is
                Close_Hbox (Ctxt);
             when Iir_Kind_Selected_Waveform_Assignment_Statement =>
                Disp_Selected_Waveform_Assignment (Ctxt, Stmt);
+            when Iir_Kind_Signal_Force_Assignment_Statement =>
+               Start_Hbox (Ctxt);
+               Disp_Label (Ctxt, Stmt);
+               Print (Ctxt, Get_Target (Stmt));
+               Disp_Token (Ctxt, Tok_Less_Equal);
+               Disp_Token (Ctxt, Tok_Force);
+               Disp_Force_Mode_Opt (Ctxt, Stmt);
+               Print (Ctxt, Get_Expression (Stmt));
+               Disp_Token (Ctxt, Tok_Semi_Colon);
+               Close_Hbox (Ctxt);
+            when Iir_Kind_Signal_Release_Assignment_Statement =>
+               Start_Hbox (Ctxt);
+               Disp_Label (Ctxt, Stmt);
+               Print (Ctxt, Get_Target (Stmt));
+               Disp_Token (Ctxt, Tok_Less_Equal);
+               Disp_Token (Ctxt, Tok_Release);
+               Disp_Force_Mode_Opt (Ctxt, Stmt);
+               Disp_Token (Ctxt, Tok_Semi_Colon);
+               Close_Hbox (Ctxt);
             when Iir_Kind_Variable_Assignment_Statement =>
                Disp_Variable_Assignment (Ctxt, Stmt);
             when Iir_Kind_Conditional_Variable_Assignment_Statement =>
@@ -4433,6 +4539,24 @@ package body Vhdl.Prints is
       end case;
    end Disp_Vhdl;
 
+   procedure Print_Qualified_Expression (Ctxt : in out Ctxt_Class; Expr: Iir)
+   is
+      Qexpr : constant Iir := Strip_Literal_Origin (Get_Expression (Expr));
+      Has_Paren : constant Boolean :=
+        Get_Kind (Qexpr) = Iir_Kind_Parenthesis_Expression
+        or else Get_Kind (Qexpr) = Iir_Kind_Aggregate;
+   begin
+      Print (Ctxt, Get_Type_Mark (Expr));
+      Disp_Token (Ctxt, Tok_Tick);
+      if not Has_Paren then
+         Disp_Token (Ctxt, Tok_Left_Paren);
+      end if;
+      Print (Ctxt, Qexpr);
+      if not Has_Paren then
+         Disp_Token (Ctxt, Tok_Right_Paren);
+      end if;
+   end Print_Qualified_Expression;
+
    procedure Print (Ctxt : in out Ctxt_Class; Expr: Iir)
    is
       Orig : Iir;
@@ -4562,22 +4686,7 @@ package body Vhdl.Prints is
             Print (Ctxt, Get_Expression (Expr));
             Disp_Token (Ctxt, Tok_Right_Paren);
          when Iir_Kind_Qualified_Expression =>
-            declare
-               Qexpr : constant Iir := Get_Expression (Expr);
-               Has_Paren : constant Boolean :=
-                 Get_Kind (Qexpr) = Iir_Kind_Parenthesis_Expression
-                 or else Get_Kind (Qexpr) = Iir_Kind_Aggregate;
-            begin
-               Print (Ctxt, Get_Type_Mark (Expr));
-               Disp_Token (Ctxt, Tok_Tick);
-               if not Has_Paren then
-                  Disp_Token (Ctxt, Tok_Left_Paren);
-               end if;
-               Print (Ctxt, Qexpr);
-               if not Has_Paren then
-                  Disp_Token (Ctxt, Tok_Right_Paren);
-               end if;
-            end;
+            Print_Qualified_Expression (Ctxt, Expr);
          when Iir_Kind_Allocator_By_Expression =>
             Disp_Token (Ctxt, Tok_New);
             Print (Ctxt, Get_Expression (Expr));
@@ -4716,6 +4825,15 @@ package body Vhdl.Prints is
          when Iir_Kind_Path_Name_Attribute =>
             Disp_Name_Attribute (Ctxt, Expr, Name_Path_Name);
 
+         when Iir_Kind_Psl_Prev =>
+            Disp_Psl_Prev (Ctxt, Expr);
+         when Iir_Kind_Psl_Stable =>
+            Disp_Psl_Stable (Ctxt, Expr);
+         when Iir_Kind_Psl_Rose =>
+            Disp_Psl_Rose (Ctxt, Expr);
+         when Iir_Kind_Psl_Fell =>
+            Disp_Psl_Fell (Ctxt, Expr);
+
          when Iir_Kinds_Type_And_Subtype_Definition =>
             Disp_Type (Ctxt, Expr);
 
@@ -4835,7 +4953,6 @@ package body Vhdl.Prints is
       end loop;
    end Disp_Str;
 
-
    function Need_Space (Tok, Prev_Tok : Token_Type) return Boolean is
    begin
       if Prev_Tok = Tok_Newline then
@@ -4888,6 +5005,7 @@ package body Vhdl.Prints is
         or Tok in Token_Relational_Operator_Type
         or Tok in Token_Adding_Operator_Type
         or Tok in Token_Multiplying_Operator_Type
+        or Tok = Tok_Minus_Greater
         or Tok = Tok_Bar
       then
          --  Always a space before '[', ':='.

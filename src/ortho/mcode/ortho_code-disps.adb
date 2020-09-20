@@ -291,7 +291,7 @@ package body Ortho_Code.Disps is
             Put ("alloca (");
             Disp_Expr (Get_Expr_Operand (Expr));
             Put (")");
-         when OE_Conv =>
+         when OE_Conv_Ov =>
             Disp_Type (Get_Conv_Type (Expr));
             Put ("'conv (");
             Disp_Expr (Get_Expr_Operand (Expr));
@@ -400,10 +400,20 @@ package body Ortho_Code.Disps is
             Put ("[");
             Put_Trim (Uns32'Image (Get_Type_Subarray_Length (Atype)));
             Put ("]");
+            Put (" ");
+            Put ("of");
+            Put (" ");
+            Disp_Type (Get_Type_Subarray_Element (Atype));
          when OT_Record =>
             Put_Line ("record");
             Disp_Fields (1, Atype);
             Put ("end record");
+         when OT_Subrecord =>
+            Put_Line ("subrecord");
+            Disp_Type (Get_Type_Subrecord_Base (Atype));
+            Put ("(");
+            Disp_Fields (1, Atype);
+            Put (")");
          when OT_Union =>
             Put_Line ("union");
             Disp_Fields (1, Atype);

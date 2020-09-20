@@ -328,6 +328,9 @@ package body Ghdlrun is
            Grt.Lib.Ghdl_Bound_Check_Failed'Address);
       Def (Trans_Decls.Ghdl_Direction_Check_Failed,
            Grt.Lib.Ghdl_Direction_Check_Failed'Address);
+      Def (Trans_Decls.Ghdl_Integer_Index_Check_Failed,
+           Grt.Lib.Ghdl_Integer_Index_Check_Failed'Address);
+
       Def (Trans_Decls.Ghdl_Malloc0,
            Grt.Lib.Ghdl_Malloc0'Address);
       Def (Trans_Decls.Ghdl_Std_Ulogic_To_Boolean_Array,
@@ -462,6 +465,11 @@ package body Ghdlrun is
       Def (Trans_Decls.Ghdl_Signal_Direct_Assign,
            Grt.Signals.Ghdl_Signal_Direct_Assign'Address);
 
+      Def (Trans_Decls.Ghdl_Signal_Release_Eff,
+           Grt.Signals.Ghdl_Signal_Release_Eff'Address);
+      Def (Trans_Decls.Ghdl_Signal_Release_Drv,
+           Grt.Signals.Ghdl_Signal_Release_Drv'Address);
+
       Def (Trans_Decls.Ghdl_Create_Signal_B1,
            Grt.Signals.Ghdl_Create_Signal_B1'Address);
       Def (Trans_Decls.Ghdl_Signal_Init_B1,
@@ -476,6 +484,10 @@ package body Ghdlrun is
            Grt.Signals.Ghdl_Signal_Associate_B1'Address);
       Def (Trans_Decls.Ghdl_Signal_Add_Port_Driver_B1,
            Grt.Signals.Ghdl_Signal_Add_Port_Driver_B1'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Drv_B1,
+           Grt.Signals.Ghdl_Signal_Force_Driving_B1'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Eff_B1,
+           Grt.Signals.Ghdl_Signal_Force_Effective_B1'Address);
 
       Def (Trans_Decls.Ghdl_Create_Signal_E8,
            Grt.Signals.Ghdl_Create_Signal_E8'Address);
@@ -491,6 +503,10 @@ package body Ghdlrun is
            Grt.Signals.Ghdl_Signal_Associate_E8'Address);
       Def (Trans_Decls.Ghdl_Signal_Add_Port_Driver_E8,
            Grt.Signals.Ghdl_Signal_Add_Port_Driver_E8'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Drv_E8,
+           Grt.Signals.Ghdl_Signal_Force_Driving_E8'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Eff_E8,
+           Grt.Signals.Ghdl_Signal_Force_Effective_E8'Address);
 
       Def (Trans_Decls.Ghdl_Create_Signal_E32,
            Grt.Signals.Ghdl_Create_Signal_E32'Address);
@@ -506,6 +522,10 @@ package body Ghdlrun is
            Grt.Signals.Ghdl_Signal_Associate_E32'Address);
       Def (Trans_Decls.Ghdl_Signal_Add_Port_Driver_E32,
            Grt.Signals.Ghdl_Signal_Add_Port_Driver_E32'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Drv_E32,
+           Grt.Signals.Ghdl_Signal_Force_Driving_E32'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Eff_E32,
+           Grt.Signals.Ghdl_Signal_Force_Effective_E32'Address);
 
       Def (Trans_Decls.Ghdl_Create_Signal_I32,
            Grt.Signals.Ghdl_Create_Signal_I32'Address);
@@ -521,6 +541,10 @@ package body Ghdlrun is
            Grt.Signals.Ghdl_Signal_Associate_I32'Address);
       Def (Trans_Decls.Ghdl_Signal_Add_Port_Driver_I32,
            Grt.Signals.Ghdl_Signal_Add_Port_Driver_I32'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Drv_I32,
+           Grt.Signals.Ghdl_Signal_Force_Driving_I32'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Eff_I32,
+           Grt.Signals.Ghdl_Signal_Force_Effective_I32'Address);
 
       Def (Trans_Decls.Ghdl_Create_Signal_I64,
            Grt.Signals.Ghdl_Create_Signal_I64'Address);
@@ -536,6 +560,10 @@ package body Ghdlrun is
            Grt.Signals.Ghdl_Signal_Associate_I64'Address);
       Def (Trans_Decls.Ghdl_Signal_Add_Port_Driver_I64,
            Grt.Signals.Ghdl_Signal_Add_Port_Driver_I64'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Drv_I64,
+           Grt.Signals.Ghdl_Signal_Force_Driving_I64'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Eff_I64,
+           Grt.Signals.Ghdl_Signal_Force_Effective_I64'Address);
 
       Def (Trans_Decls.Ghdl_Create_Signal_F64,
            Grt.Signals.Ghdl_Create_Signal_F64'Address);
@@ -551,6 +579,10 @@ package body Ghdlrun is
            Grt.Signals.Ghdl_Signal_Associate_F64'Address);
       Def (Trans_Decls.Ghdl_Signal_Add_Port_Driver_F64,
            Grt.Signals.Ghdl_Signal_Add_Port_Driver_F64'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Drv_F64,
+           Grt.Signals.Ghdl_Signal_Force_Driving_F64'Address);
+      Def (Trans_Decls.Ghdl_Signal_Force_Eff_F64,
+           Grt.Signals.Ghdl_Signal_Force_Effective_F64'Address);
 
       Def (Trans_Decls.Ghdl_Signal_Attribute_Register_Prefix,
            Grt.Signals.Ghdl_Signal_Attribute_Register_Prefix'Address);
@@ -753,7 +785,7 @@ package body Ghdlrun is
    function Decode_Command (Cmd : Command_Run_Help; Name : String)
                            return Boolean;
    function Get_Short_Help (Cmd : Command_Run_Help) return String;
-   procedure Perform_Action (Cmd : Command_Run_Help;
+   procedure Perform_Action (Cmd : in out Command_Run_Help;
                              Args : Argument_List);
 
    function Decode_Command (Cmd : Command_Run_Help; Name : String)
@@ -761,17 +793,21 @@ package body Ghdlrun is
    is
       pragma Unreferenced (Cmd);
    begin
-      return Name = "--run-help";
+      return
+        Name = "run-help" or else
+        Name = "--run-help";
    end Decode_Command;
 
    function Get_Short_Help (Cmd : Command_Run_Help) return String
    is
       pragma Unreferenced (Cmd);
    begin
-      return "--run-help         Disp help for RUNOPTS options";
+      return "run-help"
+        & ASCII.LF & "  Display help for RUNOPTS options"
+        & ASCII.LF & "  alias: --run-help";
    end Get_Short_Help;
 
-   procedure Perform_Action (Cmd : Command_Run_Help;
+   procedure Perform_Action (Cmd : in out Command_Run_Help;
                              Args : Argument_List)
    is
       pragma Unreferenced (Cmd);

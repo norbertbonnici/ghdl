@@ -165,14 +165,18 @@ package body Grt.Rtis_Utils is
          when  Ghdl_Rtik_Subtype_Array
            | Ghdl_Rtik_Type_Record
            | Ghdl_Rtik_Subtype_Record =>
-            --  Object is a pointer.
+            --  If the type is complex then the location
+            --  contains a pointer to the instantiation data.
             if Rti_Complex_Type (Obj_Type) then
                Addr := To_Addr_Acc (Obj_Loc).all;
             end if;
          when Ghdl_Rtik_Type_Array
-           | Ghdl_Rtik_Type_Unbounded_Record
-           | Ghdl_Rtik_Subtype_Unbounded_Record =>
-            --  Object is a fat pointer.
+            | Ghdl_Rtik_Subtype_Unbounded_Array
+            | Ghdl_Rtik_Type_Unbounded_Record
+            | Ghdl_Rtik_Subtype_Unbounded_Record =>
+            --  If the type is unbounded then the location
+            --  for the object containts a pointer to the bounds
+            --  and a pointer to the data.
             Bounds := To_Ghdl_Uc_Array_Acc (Obj_Loc).Bounds;
             Addr := To_Ghdl_Uc_Array_Acc (Obj_Loc).Base;
          when others =>
@@ -208,13 +212,31 @@ package body Grt.Rtis_Utils is
             Off_Addr := Rec_Layout + Off;
             El_Addr := Obj + To_Ghdl_Index_Ptr (Off_Addr).all;
             El_Bounds := Rec_Layout + El.Layout_Off;
-            if El.Eltype.Kind = Ghdl_Rtik_Type_Array then
-               El_Bounds := Array_Layout_To_Bounds (El_Bounds);
-            end if;
+            case El.Eltype.Kind is
+               when Ghdl_Rtik_Type_Array
+                 | Ghdl_Rtik_Subtype_Unbounded_Array =>
+                  El_Bounds := Array_Layout_To_Bounds (El_Bounds);
+               when others =>
+                  --  Keep layout.
+                  null;
+            end case;
          when others =>
             Internal_Error ("record_to_element");
       end case;
    end Record_To_Element;
+
+   function Is_Unbounded (Rti : Ghdl_Rti_Access) return Boolean is
+   begin
+      case Rti.Kind is
+         when Ghdl_Rtik_Type_Array
+           | Ghdl_Rtik_Subtype_Unbounded_Array
+           | Ghdl_Rtik_Type_Unbounded_Record
+           | Ghdl_Rtik_Subtype_Unbounded_Record =>
+            return True;
+         when others =>
+            return False;
+      end case;
+   end Is_Unbounded;
 
    procedure Foreach_Scalar (Ctxt : Rti_Context;
                              Obj_Type : Ghdl_Rti_Access;
@@ -358,7 +380,7 @@ package body Grt.Rtis_Utils is
             Pos_To_Vstring (Name, Base_Type, Rng, I - 1);
             if Index = Last_Index then
                --  FIXME: not always needed.
-               Bounds := Array_Layout_To_Bounds (Cur_Bounds);
+               Bounds := Array_Layout_To_Element (Cur_Bounds, El_Rti);
                Append (Name, ')');
                Handle_Any (El_Rti);
             else
@@ -410,6 +432,15 @@ package body Grt.Rtis_Utils is
                Handle_Scalar (Rti);
             when Ghdl_Rtik_Type_Array =>
                Handle_Array_1 (To_Ghdl_Rtin_Type_Array_Acc (Rti), 0);
+            when Ghdl_Rtik_Subtype_Unbounded_Array =>
+               declare
+                  St : constant Ghdl_Rtin_Subtype_Composite_Acc :=
+                    To_Ghdl_Rtin_Subtype_Composite_Acc (Rti);
+                  Bt : constant Ghdl_Rtin_Type_Array_Acc :=
+                    To_Ghdl_Rtin_Type_Array_Acc (St.Basetype);
+               begin
+                  Handle_Array_1 (Bt, 0);
+               end;
             when Ghdl_Rtik_Subtype_Array =>
                declare
                   St : constant Ghdl_Rtin_Subtype_Composite_Acc :=
@@ -641,6 +672,10 @@ package body Grt.Rtis_Utils is
       Ctxt := Last_Ctxt;
       loop
          Blk := To_Ghdl_Rtin_Block_Acc (Ctxt.Block);
+         if Blk = null then
+            Prepend (Rstr, "???");
+            return;
+         end if;
          case Ctxt.Block.Kind is
             when Ghdl_Rtik_Entity =>
                declare

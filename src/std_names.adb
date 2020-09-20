@@ -157,8 +157,10 @@ package body Std_Names is
       Def ("context",            Name_Context);
       Def ("cover",              Name_Cover);
       Def ("default",            Name_Default);
+      Def ("force",              Name_Force);
       Def ("parameter",          Name_Parameter);
       Def ("property",           Name_Property);
+      Def ("release",            Name_Release);
       Def ("restrict",           Name_Restrict);
       Def ("restrict_guarantee", Name_Restrict_Guarantee);
       Def ("sequence",           Name_Sequence);
@@ -200,7 +202,6 @@ package body Std_Names is
       Def ("endspecify",   Name_Endspecify);
       Def ("endtable",     Name_Endtable);
       Def ("endtask",      Name_Endtask);
-      Def ("force",        Name_Force);
       Def ("forever",      Name_Forever);
       Def ("fork",         Name_Fork);
       Def ("highz0",       Name_Highz0);
@@ -226,7 +227,6 @@ package body Std_Names is
       Def ("pulldown",     Name_Pulldown);
       Def ("pullup",       Name_Pullup);
       Def ("realtime",     Name_Realtime);
-      Def ("release",      Name_Release);
       Def ("reg",          Name_Reg);
       Def ("repeat",       Name_Repeat);
       Def ("rcmos",        Name_Rcmos);
@@ -617,23 +617,26 @@ package body Std_Names is
 
       Def ("ieee",               Name_Ieee);
       Def ("std_logic_1164",     Name_Std_Logic_1164);
+      Def ("vital_timing",       Name_VITAL_Timing);
+      Def ("numeric_std",        Name_Numeric_Std);
+      Def ("numeric_bit",        Name_Numeric_Bit);
+      Def ("std_logic_arith",    Name_Std_Logic_Arith);
+      Def ("std_logic_signed",   Name_Std_Logic_Signed);
+      Def ("std_logic_unsigned", Name_Std_Logic_Unsigned);
+      Def ("std_logic_textio",   Name_Std_Logic_Textio);
+      Def ("std_logic_misc",     Name_Std_Logic_Misc);
+      Def ("math_real",          Name_Math_Real);
+
       Def ("std_ulogic",         Name_Std_Ulogic);
       Def ("std_ulogic_vector",  Name_Std_Ulogic_Vector);
       Def ("std_logic",          Name_Std_Logic);
       Def ("std_logic_vector",   Name_Std_Logic_Vector);
       Def ("rising_edge",        Name_Rising_Edge);
       Def ("falling_edge",       Name_Falling_Edge);
-      Def ("vital_timing",       Name_VITAL_Timing);
       Def ("vital_level0",       Name_VITAL_Level0);
       Def ("vital_level1",       Name_VITAL_Level1);
-      Def ("numeric_std",        Name_Numeric_Std);
-      Def ("numeric_bit",        Name_Numeric_Bit);
       Def ("unresolved_unsigned", Name_Unresolved_Unsigned);
       Def ("unresolved_signed",  Name_Unresolved_Signed);
-      Def ("std_logic_arith",    Name_Std_Logic_Arith);
-      Def ("std_logic_signed",   Name_Std_Logic_Signed);
-      Def ("std_logic_unsigned", Name_Std_Logic_Unsigned);
-      Def ("std_logic_textio",   Name_Std_Logic_Textio);
       Def ("to_integer",         Name_To_Integer);
       Def ("to_unsigned",        Name_To_Unsigned);
       Def ("to_signed",          Name_To_Signed);
@@ -643,17 +646,38 @@ package body Std_Names is
       Def ("shift_right",        Name_Shift_Right);
       Def ("rotate_left",        Name_Rotate_Left);
       Def ("rotate_right",       Name_Rotate_Right);
+      Def ("to_bit",             Name_To_Bit);
       Def ("to_bitvector",       Name_To_Bitvector);
+      Def ("to_stdulogic",       Name_To_Stdulogic);
+      Def ("to_stdlogicvector",  Name_To_Stdlogicvector);
+      Def ("to_stdulogicvector", Name_To_Stdulogicvector);
       Def ("is_x",               Name_Is_X);
+      Def ("to_01",              Name_To_01);
+      Def ("to_x01",             Name_To_X01);
+      Def ("to_x01z",            Name_To_X01Z);
+      Def ("to_ux01",            Name_To_UX01);
       Def ("conv_signed",        Name_Conv_Signed);
       Def ("conv_unsigned",      Name_Conv_Unsigned);
       Def ("conv_integer",       Name_Conv_Integer);
-      Def ("math_real",          Name_Math_Real);
+      Def ("conv_std_logic_vector", Name_Conv_Std_Logic_Vector);
+      Def ("and_reduce",         Name_And_Reduce);
+      Def ("nand_reduce",        Name_Nand_Reduce);
+      Def ("or_reduce",          Name_Or_Reduce);
+      Def ("nor_reduce",         Name_Nor_Reduce);
+      Def ("xor_reduce",         Name_Xor_Reduce);
+      Def ("xnor_reduce",        Name_Xnor_Reduce);
       Def ("ceil",               Name_Ceil);
+      Def ("floor",              Name_Floor);
       Def ("round",              Name_Round);
       Def ("log2",               Name_Log2);
       Def ("sin",                Name_Sin);
       Def ("cos",                Name_Cos);
+      Def ("shl",                Name_Shl);
+      Def ("shr",                Name_Shr);
+      Def ("ext",                Name_Ext);
+      Def ("sxt",                Name_Sxt);
+      Def ("find_leftmost",      Name_Find_Leftmost);
+      Def ("find_rightmost",     Name_Find_Rightmost);
 
       Def ("allconst",           Name_Allconst);
       Def ("allseq",             Name_Allseq);
@@ -773,6 +797,10 @@ package body Std_Names is
       Def ("synopsys",              Name_Synopsys);
       Def ("translate_off",         Name_Translate_Off);
       Def ("translate_on",          Name_Translate_On);
+      Def ("translate",             Name_Translate);
+      Def ("synthesis_off",         Name_Synthesis_Off);
+      Def ("synthesis_on",          Name_Synthesis_On);
+      Def ("off",                   Name_Off);
 
       --  PSL keywords
       Def ("a",                  Name_A);
@@ -792,7 +820,7 @@ package body Std_Names is
       Def ("endpoint",           Name_Endpoint);
       Def ("eventually",         Name_Eventually);
       Def ("fairness",           Name_Fairness);
-      Def ("fell ",              Name_Fell);
+      Def ("fell",               Name_Fell);
       Def ("forall",             Name_Forall);
       Def ("g",                  Name_G);
       Def ("inf",                Name_Inf);

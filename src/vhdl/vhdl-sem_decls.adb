@@ -235,18 +235,22 @@ package body Vhdl.Sem_Decls is
             A_Type := Create_Error_Type (Null_Iir);
             Set_Subtype_Indication (Inter, A_Type);
          else
+            pragma Assert (Get_Is_Ref (Inter));
             A_Type := Get_Type (Last);
             Default_Value := Get_Default_Value (Last);
+            Set_Subtype_Indication (Inter, Get_Subtype_Indication (Last));
          end if;
       else
          A_Type := Sem_Subtype_Indication (A_Type);
          Set_Subtype_Indication (Inter, A_Type);
          A_Type := Get_Type_Of_Subtype_Indication (A_Type);
+         Set_Type (Inter, A_Type);
 
          Default_Value := Get_Default_Value (Inter);
          if Default_Value /= Null_Iir and then not Is_Error (A_Type) then
             Deferred_Constant_Allowed := True;
-            Default_Value := Sem_Expression (Default_Value, A_Type);
+            Default_Value := Sem_Expression_Wildcard
+              (Default_Value, A_Type, Is_Object_Fully_Constrained (Inter));
             Default_Value :=
               Eval_Expr_Check_If_Static (Default_Value, A_Type);
             Deferred_Constant_Allowed := False;
@@ -279,6 +283,7 @@ package body Vhdl.Sem_Decls is
                      --  parameter includes the reserved word BUS.
                      if Flags.Vhdl_Std >= Vhdl_93
                        and then Interface_Kind in Parameter_Interface_List
+                       and then not Flags.Flag_Relaxed_Rules
                      then
                         Error_Msg_Sem
                           (+Inter, "signal parameter can't be of kind bus");
@@ -307,7 +312,9 @@ package body Vhdl.Sem_Decls is
             when Iir_Kind_Interface_Variable_Declaration =>
                case Get_Kind (Get_Base_Type (A_Type)) is
                   when Iir_Kind_File_Type_Definition =>
-                     if Flags.Vhdl_Std >= Vhdl_93 then
+                     if Flags.Vhdl_Std >= Vhdl_93
+                       and then not Flags.Flag_Relaxed_Rules
+                     then
                         Error_Msg_Sem
                           (+Inter,
                            "variable formal can't be a file (vhdl 93)");
@@ -505,7 +512,6 @@ package body Vhdl.Sem_Decls is
       if Get_Generic_Map_Aspect_Chain (Inter) /= Null_Iir then
          Sem_Generic_Association_Chain (Get_Package_Header (Pkg), Inter);
          --  Not yet fully supported - need to check the instance.
-         raise Internal_Error;
       end if;
 
       Sem_Inst.Instantiate_Package_Declaration (Inter, Pkg);
@@ -546,7 +552,6 @@ package body Vhdl.Sem_Decls is
       Set_Location (Def, Get_Location (Inter));
       Set_Type_Declarator (Def, Inter);
       Set_Type (Inter, Def);
-      Set_Base_Type (Def, Def);
       Set_Type_Staticness (Def, None);
       Set_Resolved_Flag (Def, False);
       Set_Signal_Type_Flag (Def, True);
@@ -698,7 +703,6 @@ package body Vhdl.Sem_Decls is
          Def := Create_Iir (Iir_Kind_Incomplete_Type_Definition);
          Location_Copy (Def, Decl);
          Set_Type_Definition (Decl, Def);
-         Set_Base_Type (Def, Def);
          Set_Signal_Type_Flag (Def, True);
          Set_Type_Declarator (Def, Decl);
          Set_Visible_Flag (Decl, True);
@@ -931,10 +935,12 @@ package body Vhdl.Sem_Decls is
          if Atype = Null_Iir then
             Atype := Create_Error_Type (Get_Type (Decl));
          end if;
+         Set_Type (Decl, Atype);
 
          Default_Value := Get_Default_Value (Decl);
          if Default_Value /= Null_Iir then
-            Default_Value := Sem_Expression (Default_Value, Atype);
+            Default_Value := Sem_Expression_Wildcard
+              (Default_Value, Atype, Is_Object_Fully_Constrained (Decl));
             if Default_Value = Null_Iir then
                Default_Value :=
                  Create_Error_Expr (Get_Default_Value (Decl), Atype);
@@ -945,14 +951,14 @@ package body Vhdl.Sem_Decls is
       else
          pragma Assert (Get_Kind (Last_Decl) = Get_Kind (Decl));
          pragma Assert (Get_Has_Identifier_List (Last_Decl));
+         Set_Is_Ref (Decl, True);
          Default_Value := Get_Default_Value (Last_Decl);
-         if Is_Valid (Default_Value) then
-            Set_Is_Ref (Decl, True);
-         end if;
+         Atype := Get_Subtype_Indication (Last_Decl);
+         Set_Subtype_Indication (Decl, Atype);
          Atype := Get_Type (Last_Decl);
+         Set_Type (Decl, Atype);
       end if;
 
-      Set_Type (Decl, Atype);
       Set_Default_Value (Decl, Default_Value);
       Set_Name_Staticness (Decl, Locally);
       Set_Visible_Flag (Decl, True);
@@ -1132,15 +1138,24 @@ package body Vhdl.Sem_Decls is
             --  For a variable or signal declared by an object declaration, the
             --  subtype indication of the corresponding object declaration
             --  must define a constrained array subtype.
-            if not Is_Fully_Constrained_Type (Atype) then
-               Error_Msg_Sem
-                 (+Decl,
-                  "declaration of %n with unconstrained %n is not allowed",
-                  (+Decl, +Atype));
-               if Default_Value /= Null_Iir then
-                  Error_Msg_Sem (+Decl, "(even with a default value)");
+            declare
+               Ind : constant Iir := Get_Subtype_Indication (Decl);
+            begin
+               if not (Is_Valid (Ind)
+                       and then Get_Kind (Ind) = Iir_Kind_Subtype_Attribute)
+                 and then not Is_Fully_Constrained_Type (Atype)
+               then
+                  Report_Start_Group;
+                  Error_Msg_Sem
+                    (+Decl,
+                     "declaration of %n with unconstrained %n is not allowed",
+                     (+Decl, +Atype));
+                  if Default_Value /= Null_Iir then
+                     Error_Msg_Sem (+Decl, "(even with a default value)");
+                  end if;
+                  Report_End_Group;
                end if;
-            end if;
+            end;
 
          when others =>
             Error_Kind ("sem_object_declaration(2)", Decl);

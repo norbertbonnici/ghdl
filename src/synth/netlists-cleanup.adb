@@ -119,23 +119,43 @@ package body Netlists.Cleanup is
       use Netlists.Gates;
       Inst : Instance;
       Next_Inst : Instance;
-      Inp : Input;
-      O : Net;
    begin
       Inst := Get_First_Instance (M);
       while Inst /= No_Instance loop
          Next_Inst := Get_Next_Instance (Inst);
 
-         if Get_Id (Inst) = Id_Output then
-            Inp := Get_Input (Inst, 0);
-            O := Get_Driver (Inp);
-            if O /= No_Net then
-               --  Only when the output is driven.
-               Disconnect (Inp);
-               Redirect_Inputs (Get_Output (Inst, 0), O);
-            end if;
-            Remove_Instance (Inst);
-         end if;
+         case Get_Id (Inst) is
+            when Id_Output
+              |  Id_Ioutput
+              |  Id_Port
+              |  Id_Enable
+              |  Id_Nop =>
+               declare
+                  Inp : Input;
+                  In_Drv : Net;
+                  O : Net;
+               begin
+                  Inp := Get_Input (Inst, 0);
+                  In_Drv := Get_Driver (Inp);
+                  O := Get_Output (Inst, 0);
+                  if In_Drv /= No_Net then
+                     --  Only when the output is driven.
+                     Disconnect (Inp);
+                     Redirect_Inputs (O, In_Drv);
+                  else
+                     Disconnect (Get_First_Sink (O));
+                  end if;
+
+                  if Get_Id (Inst) = Id_Ioutput then
+                     --  Disconnect the initial value.
+                     Disconnect (Get_Input (Inst, 1));
+                  end if;
+
+                  Remove_Instance (Inst);
+               end;
+            when others =>
+               null;
+         end case;
 
          Inst := Next_Inst;
       end loop;
@@ -153,6 +173,7 @@ package body Netlists.Cleanup is
    procedure Mark_And_Sweep (M : Module)
    is
       use Netlists.Gates;
+      --  Table of new gates to be inspected.
       Inspect : Instance_Tables.Instance;
 
       Inst : Instance;
@@ -168,9 +189,13 @@ package body Netlists.Cleanup is
 
          case Get_Id (Inst) is
             when Id_Assert
-              | Id_Assume
-              | Id_Cover
-              | Id_Assert_Cover =>
+               | Id_Assume
+               | Id_Cover
+               | Id_Assert_Cover =>
+               Insert_Mark_And_Sweep (Inspect, Inst);
+            when Id_User_None
+               | Id_User_Parameters =>
+               --  Always keep user modules.
                Insert_Mark_And_Sweep (Inspect, Inst);
             when others =>
                null;
@@ -200,6 +225,30 @@ package body Netlists.Cleanup is
                   Insert_Mark_And_Sweep (Inspect, Get_Net_Parent (N));
                end if;
             end loop;
+
+            case Get_Id (Inst) is
+               when Id_Mem_Rd
+                 | Id_Mem_Rd_Sync =>
+                  --  When a memory read port is found, mark the whole
+                  --  memory.
+                  --  FIXME: free unused read ports.
+                  declare
+                     Inp : Input;
+                  begin
+                     loop
+                        N := Get_Output (Inst, 0);
+                        Inp := Get_First_Sink (N);
+                        exit when Inp = No_Input;
+                        pragma Assert (Get_Next_Sink (Inp) = No_Input);
+                        Inst := Get_Input_Parent (Inp);
+                        exit when Get_Mark_Flag (Inst);
+                        Insert_Mark_And_Sweep (Inspect, Inst);
+                        N := Get_Output (Inst, 0);
+                     end loop;
+                  end;
+               when others =>
+                  null;
+            end case;
          end;
       end loop;
 
@@ -211,6 +260,7 @@ package body Netlists.Cleanup is
          Last_Unused : Instance;
       begin
          First_Unused := No_Instance;
+         Last_Unused := No_Instance;
 
          Extract_All_Instances (M, Inst);
          --  But keep the self-instance.
@@ -253,7 +303,8 @@ package body Netlists.Cleanup is
                Inst := First_Unused;
                exit when Inst = No_Instance;
                First_Unused := Get_Next_Instance (Inst);
-
+               Set_Next_Instance (Inst, No_Instance);
+               Set_Prev_Instance (Inst, No_Instance);
                Free_Instance (Inst);
             end loop;
          end if;

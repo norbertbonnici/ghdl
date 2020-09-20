@@ -30,7 +30,8 @@ package body Netlists.Utils is
       M : constant Module := Get_Module (Inst);
    begin
       case Get_Id (M) is
-         when Id_Concatn =>
+         when Id_Concatn
+           | Id_Pmux =>
             return Port_Nbr (Get_Param_Uns32 (Inst, 0));
          when others =>
             if Is_Self_Instance (Inst) then
@@ -98,6 +99,11 @@ package body Netlists.Utils is
       return Get_Output_Desc (M, I).W;
    end Get_Output_Width;
 
+   function Get_Inout_Flag (M : Module; I : Port_Idx) return Boolean is
+   begin
+      return Get_Output_Desc (M, I).Is_Inout;
+   end Get_Inout_Flag;
+
    function Get_Input_Net (Inst : Instance; Idx : Port_Idx) return Net is
    begin
       return Get_Driver (Get_Input (Inst, Idx));
@@ -108,6 +114,16 @@ package body Netlists.Utils is
    begin
       return Get_Net_Parent (Get_Input_Net (Inst, Idx));
    end Get_Input_Instance;
+
+   function Get_Param_Name (M : Module; I : Param_Idx) return Sname is
+   begin
+      return Get_Param_Desc (M, I).Name;
+   end Get_Param_Name;
+
+   function Get_Param_Type (M : Module; I : Param_Idx) return Param_Type is
+   begin
+      return Get_Param_Desc (M, I).Typ;
+   end Get_Param_Type;
 
    function Is_Const_Module (Id : Module_Id) return Boolean is
    begin
@@ -222,42 +238,19 @@ package body Netlists.Utils is
       return Inp = No_Input;
    end Has_One_Connection;
 
-   procedure Disconnect_And_Free (I : Input)
+   function Disconnect_And_Get (I : Input) return Net
    is
-      I_Net : constant Net := Get_Driver (I);
-      Inst : constant Instance := Get_Net_Parent (I_Net);
-      Nbr_Inputs : Port_Nbr;
-      Nbr_Outputs : Port_Nbr;
+      N : Net;
    begin
-      --  First disconnect.
+      N := Get_Driver (I);
       Disconnect (I);
+      return N;
+   end Disconnect_And_Get;
 
-      --  Quick check: is output (of I) still used ?
-      if Is_Connected (I_Net) then
-         return;
-      end if;
-
-      --  Check that all outputs are unused.
-      Nbr_Outputs := Get_Nbr_Outputs (Inst);
-      if Nbr_Outputs > 1 then
-         for K in 0 .. Nbr_Outputs - 1 loop
-            if Is_Connected (Get_Output (Inst, K)) then
-               return;
-            end if;
-         end loop;
-      end if;
-
-      --  First disconnect inputs.
-      Nbr_Inputs := Get_Nbr_Inputs (Inst);
-      if Nbr_Inputs > 0 then
-         for K in 0 .. Nbr_Inputs - 1 loop
-            Disconnect_And_Free (Get_Input (Inst, K));
-         end loop;
-      end if;
-
-      --  Free Inst
-      Free_Instance (Inst);
-   end Disconnect_And_Free;
+   function Disconnect_And_Get (Inst : Instance; I : Port_Idx) return Net is
+   begin
+      return Disconnect_And_Get (Get_Input (Inst, I));
+   end Disconnect_And_Get;
 
    function Same_Net (L, R : Net) return Boolean is
    begin
@@ -295,6 +288,20 @@ package body Netlists.Utils is
          end case;
       end;
    end Same_Net;
+
+   procedure Copy_Attributes (Dest : Instance; Src : Instance)
+   is
+      Attr : Attribute;
+   begin
+      Attr := Get_First_Attribute (Src);
+      while Attr /= No_Attribute loop
+         Set_Attribute (Dest,
+                        Get_Attribute_Name (Attr),
+                        Get_Attribute_Type (Attr),
+                        Get_Attribute_Pval (Attr));
+         Attr := Get_Attribute_Next (Attr);
+      end loop;
+   end Copy_Attributes;
 
    function Clog2 (W : Width) return Width is
    begin

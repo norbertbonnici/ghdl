@@ -92,7 +92,7 @@ package body Vhdl.Canon is
       Assoc := Get_Association_Choices_Chain (Aggr);
       if Get_Nbr_Elements (Get_Index_Subtype_List (Aggr_Type)) = Dim then
          while Assoc /= Null_Iir loop
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Associated_Expr (Assoc), Sensitivity_List, Is_Target);
             Assoc := Get_Chain (Assoc);
          end loop;
@@ -106,7 +106,7 @@ package body Vhdl.Canon is
       end if;
    end Canon_Extract_Sensitivity_Aggregate;
 
-   procedure Canon_Extract_Sensitivity
+   procedure Canon_Extract_Sensitivity_Expression
      (Expr: Iir; Sensitivity_List: Iir_List; Is_Target: Boolean := False)
    is
       El : Iir;
@@ -127,13 +127,13 @@ package body Vhdl.Canon is
                declare
                   Suff : Iir;
                begin
-                  Canon_Extract_Sensitivity
+                  Canon_Extract_Sensitivity_Expression
                     (Get_Prefix (Expr), Sensitivity_List, Is_Target);
                   Suff := Get_Suffix (Expr);
                   if Get_Kind (Suff)
                     not in Iir_Kinds_Scalar_Type_And_Subtype_Definition
                   then
-                     Canon_Extract_Sensitivity
+                     Canon_Extract_Sensitivity_Expression
                        (Suff, Sensitivity_List, False);
                   end if;
                end;
@@ -147,7 +147,7 @@ package body Vhdl.Canon is
                   Add_Element (Sensitivity_List, Expr);
                end if;
             else
-               Canon_Extract_Sensitivity
+               Canon_Extract_Sensitivity_Expression
                  (Get_Prefix (Expr), Sensitivity_List, Is_Target);
             end if;
 
@@ -159,7 +159,7 @@ package body Vhdl.Canon is
                   Add_Element (Sensitivity_List, Expr);
                end if;
             else
-               Canon_Extract_Sensitivity
+               Canon_Extract_Sensitivity_Expression
                  (Get_Prefix (Expr), Sensitivity_List, Is_Target);
                declare
                   Flist : constant Iir_Flist := Get_Index_List (Expr);
@@ -167,7 +167,8 @@ package body Vhdl.Canon is
                begin
                   for I in Flist_First .. Flist_Last (Flist) loop
                      El := Get_Nth_Element (Flist, I);
-                     Canon_Extract_Sensitivity (El, Sensitivity_List, False);
+                     Canon_Extract_Sensitivity_Expression
+                       (El, Sensitivity_List, False);
                   end loop;
                end;
             end if;
@@ -177,7 +178,7 @@ package body Vhdl.Canon is
             while El /= Null_Iir loop
                case Get_Kind (El) is
                   when Iir_Kind_Association_Element_By_Expression =>
-                     Canon_Extract_Sensitivity
+                     Canon_Extract_Sensitivity_Expression
                        (Get_Actual (El), Sensitivity_List, False);
                   when Iir_Kind_Association_Element_Open =>
                      null;
@@ -191,7 +192,7 @@ package body Vhdl.Canon is
            | Iir_Kind_Type_Conversion
            | Iir_Kind_Allocator_By_Expression
            | Iir_Kind_Parenthesis_Expression =>
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Expression (Expr), Sensitivity_List, False);
 
          when Iir_Kind_Allocator_By_Subtype =>
@@ -199,7 +200,7 @@ package body Vhdl.Canon is
 
          when Iir_Kind_Dereference
            | Iir_Kind_Implicit_Dereference =>
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Prefix (Expr), Sensitivity_List, False);
 
          when Iir_Kind_External_Variable_Name
@@ -207,18 +208,18 @@ package body Vhdl.Canon is
             null;
 
          when Iir_Kinds_Monadic_Operator =>
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Operand (Expr), Sensitivity_List, False);
          when Iir_Kinds_Dyadic_Operator =>
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Left (Expr), Sensitivity_List, False);
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Right (Expr), Sensitivity_List, False);
 
          when Iir_Kind_Range_Expression =>
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Left_Limit (Expr), Sensitivity_List, False);
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Right_Limit (Expr), Sensitivity_List, False);
 
          when Iir_Kinds_Type_Attribute =>
@@ -227,7 +228,7 @@ package body Vhdl.Canon is
             --  LRM 8.1
             --  An attribute name: [...]; otherwise, apply this rule to the
             --  prefix of the attribute name.
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Prefix (Expr), Sensitivity_List, False);
 
          when Iir_Kind_Interface_Signal_Declaration
@@ -286,7 +287,7 @@ package body Vhdl.Canon is
          when Iir_Kind_Value_Attribute
            | Iir_Kind_Image_Attribute
            | Iir_Kinds_Scalar_Type_Attribute =>
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Parameter (Expr), Sensitivity_List, Is_Target);
 
          when Iir_Kind_Aggregate =>
@@ -301,7 +302,7 @@ package body Vhdl.Canon is
                   when Iir_Kind_Record_Type_Definition =>
                      El := Get_Association_Choices_Chain (Expr);
                      while El /= Null_Iir loop
-                        Canon_Extract_Sensitivity
+                        Canon_Extract_Sensitivity_Expression
                           (Get_Associated_Expr (El), Sensitivity_List,
                            Is_Target);
                         El := Get_Chain (El);
@@ -314,19 +315,20 @@ package body Vhdl.Canon is
          when Iir_Kind_Simple_Name
            | Iir_Kind_Selected_Name
            | Iir_Kind_Reference_Name =>
-            Canon_Extract_Sensitivity
+            Canon_Extract_Sensitivity_Expression
               (Get_Named_Entity (Expr), Sensitivity_List, Is_Target);
 
          when others =>
             Error_Kind ("canon_extract_sensitivity", Expr);
       end case;
-   end Canon_Extract_Sensitivity;
+   end Canon_Extract_Sensitivity_Expression;
 
    procedure Canon_Extract_Sensitivity_If_Not_Null
      (Expr: Iir; Sensitivity_List: Iir_List; Is_Target: Boolean := False) is
    begin
       if Expr /= Null_Iir then
-         Canon_Extract_Sensitivity (Expr, Sensitivity_List, Is_Target);
+         Canon_Extract_Sensitivity_Expression
+           (Expr, Sensitivity_List, Is_Target);
       end if;
    end Canon_Extract_Sensitivity_If_Not_Null;
 
@@ -343,7 +345,8 @@ package body Vhdl.Canon is
            and then (Get_Mode (Get_Association_Interface (Assoc, Inter))
                        /= Iir_Out_Mode)
          then
-            Canon_Extract_Sensitivity (Get_Actual (Assoc), Sensitivity_List);
+            Canon_Extract_Sensitivity_Expression
+              (Get_Actual (Assoc), Sensitivity_List);
          end if;
          Next_Association_Interface (Assoc, Inter);
       end loop;
@@ -355,165 +358,173 @@ package body Vhdl.Canon is
    begin
       We := Chain;
       while We /= Null_Iir loop
-         Canon_Extract_Sensitivity (Get_We_Value (We), List);
+         Canon_Extract_Sensitivity_Expression (Get_We_Value (We), List);
          Canon_Extract_Sensitivity_If_Not_Null (Get_Time (We), List);
          We := Get_Chain (We);
       end loop;
    end Canon_Extract_Sensitivity_Waveform;
 
-   procedure Canon_Extract_Sequential_Statement_Chain_Sensitivity
+   procedure Canon_Extract_Sensitivity_Statement
+     (Stmt : Iir; List : Iir_List) is
+   begin
+      case Get_Kind (Stmt) is
+         when Iir_Kind_Assertion_Statement =>
+            --  LRM08 11.3
+            --  * For each assertion, report, next, exit or return
+            --    statement, apply the rule of 10.2 to each expression
+            --    in the statement, and construct the union of the
+            --    resulting sets.
+            Canon_Extract_Sensitivity_Expression
+              (Get_Assertion_Condition (Stmt), List);
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Severity_Expression (Stmt), List);
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Report_Expression (Stmt), List);
+         when Iir_Kind_Report_Statement =>
+            --  LRM08 11.3
+            --  See assertion_statement case.
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Severity_Expression (Stmt), List);
+            Canon_Extract_Sensitivity_Expression
+              (Get_Report_Expression (Stmt), List);
+         when Iir_Kind_Next_Statement
+            | Iir_Kind_Exit_Statement =>
+            --  LRM08 11.3
+            --  See assertion_statement case.
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Condition (Stmt), List);
+         when Iir_Kind_Return_Statement =>
+            --  LRM08 11.3
+            --  See assertion_statement case.
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Expression (Stmt), List);
+         when Iir_Kind_Variable_Assignment_Statement =>
+            --  LRM08 11.3
+            --  * For each assignment statement, apply the rule of 10.2 to
+            --    each expression occuring in the assignment, including any
+            --    expressions occuring in the index names or slice names in
+            --    the target, and construct the union of the resulting sets.
+            Canon_Extract_Sensitivity_Expression
+              (Get_Target (Stmt), List, True);
+            Canon_Extract_Sensitivity_Expression
+              (Get_Expression (Stmt), List, False);
+         when Iir_Kind_Simple_Signal_Assignment_Statement =>
+            --  LRM08 11.3
+            --  See variable assignment statement case.
+            Canon_Extract_Sensitivity_Expression
+              (Get_Target (Stmt), List, True);
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Reject_Time_Expression (Stmt), List);
+            Canon_Extract_Sensitivity_Waveform
+              (Get_Waveform_Chain (Stmt), List);
+         when Iir_Kind_Conditional_Signal_Assignment_Statement =>
+            Canon_Extract_Sensitivity_Expression
+              (Get_Target (Stmt), List, True);
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Reject_Time_Expression (Stmt), List);
+            declare
+               Cwe : Iir;
+            begin
+               Cwe := Get_Conditional_Waveform_Chain (Stmt);
+               while Cwe /= Null_Iir loop
+                  Canon_Extract_Sensitivity_If_Not_Null
+                    (Get_Condition (Cwe), List);
+                  Canon_Extract_Sensitivity_Waveform
+                    (Get_Waveform_Chain (Cwe), List);
+                  Cwe := Get_Chain (Cwe);
+               end loop;
+            end;
+         when Iir_Kind_If_Statement =>
+            --  LRM08 11.3
+            --  * For each if statement, apply the rule of 10.2 to the
+            --    condition and apply this rule recursively to each
+            --    sequence of statements within the if statement, and
+            --    construct the union of the resuling sets.
+            declare
+               El1 : Iir := Stmt;
+               Cond : Iir;
+            begin
+               loop
+                  Cond := Get_Condition (El1);
+                  if Cond /= Null_Iir then
+                     Canon_Extract_Sensitivity_Expression (Cond, List);
+                  end if;
+                  Canon_Extract_Sensitivity_Sequential_Statement_Chain
+                    (Get_Sequential_Statement_Chain (El1), List);
+                  El1 := Get_Else_Clause (El1);
+                  exit when El1 = Null_Iir;
+               end loop;
+            end;
+         when Iir_Kind_Case_Statement =>
+            --  LRM08 11.3
+            --  * For each case statement, apply the rule of 10.2 to the
+            --    expression and apply this rule recursively to each
+            --    sequence of statements within the case statement, and
+            --    construct the union of the resulting sets.
+            Canon_Extract_Sensitivity_Expression (Get_Expression (Stmt), List);
+            declare
+               Choice : Iir;
+            begin
+               Choice := Get_Case_Statement_Alternative_Chain (Stmt);
+               while Choice /= Null_Iir loop
+                  Canon_Extract_Sensitivity_Sequential_Statement_Chain
+                    (Get_Associated_Chain (Choice), List);
+                  Choice := Get_Chain (Choice);
+               end loop;
+            end;
+         when Iir_Kind_While_Loop_Statement =>
+            --  LRM08 11.3
+            --  * For each loop statement, apply the rule of 10.2 to each
+            --    expression in the iteration scheme, if present, and apply
+            --    this rule recursively to the sequence of statements within
+            --    the loop statement, and construct the union of the
+            --    resulting sets.
+            Canon_Extract_Sensitivity_If_Not_Null
+              (Get_Condition (Stmt), List);
+            Canon_Extract_Sensitivity_Sequential_Statement_Chain
+              (Get_Sequential_Statement_Chain (Stmt), List);
+         when Iir_Kind_For_Loop_Statement =>
+            --  LRM08 11.3
+            --  See loop statement case.
+            declare
+               It : constant Iir := Get_Parameter_Specification (Stmt);
+               It_Type : constant Iir := Get_Type (It);
+               Rng     : constant Iir := Get_Range_Constraint (It_Type);
+            begin
+               if Get_Kind (Rng) = Iir_Kind_Range_Expression then
+                  Canon_Extract_Sensitivity_Expression (Rng, List);
+               end if;
+            end;
+            Canon_Extract_Sensitivity_Sequential_Statement_Chain
+              (Get_Sequential_Statement_Chain (Stmt), List);
+         when Iir_Kind_Null_Statement =>
+            --  LRM08 11.3
+            --  ?
+            null;
+         when Iir_Kind_Procedure_Call_Statement =>
+            --  LRM08 11.3
+            --  * For each procedure call statement, apply the rule of 10.2
+            --    to each actual designator (other than OPEN) associated
+            --    with each formal parameter of mode IN or INOUT, and
+            --    construct the union of the resulting sets.
+            Canon_Extract_Sensitivity_Procedure_Call
+              (List, Get_Procedure_Call (Stmt));
+         when others =>
+            Error_Kind ("canon_extract_sensitivity_statement", Stmt);
+      end case;
+   end Canon_Extract_Sensitivity_Statement;
+
+   procedure Canon_Extract_Sensitivity_Sequential_Statement_Chain
      (Chain : Iir; List : Iir_List)
    is
       Stmt : Iir;
    begin
       Stmt := Chain;
       while Stmt /= Null_Iir loop
-         case Get_Kind (Stmt) is
-            when Iir_Kind_Assertion_Statement =>
-               --  LRM08 11.3
-               --  * For each assertion, report, next, exit or return
-               --    statement, apply the rule of 10.2 to each expression
-               --    in the statement, and construct the union of the
-               --    resulting sets.
-               Canon_Extract_Sensitivity
-                 (Get_Assertion_Condition (Stmt), List);
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Severity_Expression (Stmt), List);
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Report_Expression (Stmt), List);
-            when Iir_Kind_Report_Statement =>
-               --  LRM08 11.3
-               --  See assertion_statement case.
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Severity_Expression (Stmt), List);
-               Canon_Extract_Sensitivity
-                 (Get_Report_Expression (Stmt), List);
-            when Iir_Kind_Next_Statement
-              | Iir_Kind_Exit_Statement =>
-               --  LRM08 11.3
-               --  See assertion_statement case.
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Condition (Stmt), List);
-            when Iir_Kind_Return_Statement =>
-               --  LRM08 11.3
-               --  See assertion_statement case.
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Expression (Stmt), List);
-            when Iir_Kind_Variable_Assignment_Statement =>
-               --  LRM08 11.3
-               --  * For each assignment statement, apply the rule of 10.2 to
-               --    each expression occuring in the assignment, including any
-               --    expressions occuring in the index names or slice names in
-               --    the target, and construct the union of the resulting sets.
-               Canon_Extract_Sensitivity (Get_Target (Stmt), List, True);
-               Canon_Extract_Sensitivity (Get_Expression (Stmt), List, False);
-            when Iir_Kind_Simple_Signal_Assignment_Statement =>
-               --  LRM08 11.3
-               --  See variable assignment statement case.
-               Canon_Extract_Sensitivity (Get_Target (Stmt), List, True);
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Reject_Time_Expression (Stmt), List);
-               Canon_Extract_Sensitivity_Waveform
-                 (Get_Waveform_Chain (Stmt), List);
-            when Iir_Kind_Conditional_Signal_Assignment_Statement =>
-               Canon_Extract_Sensitivity (Get_Target (Stmt), List, True);
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Reject_Time_Expression (Stmt), List);
-               declare
-                  Cwe : Iir;
-               begin
-                  Cwe := Get_Conditional_Waveform_Chain (Stmt);
-                  while Cwe /= Null_Iir loop
-                     Canon_Extract_Sensitivity_If_Not_Null
-                       (Get_Condition (Cwe), List);
-                     Canon_Extract_Sensitivity_Waveform
-                       (Get_Waveform_Chain (Cwe), List);
-                     Cwe := Get_Chain (Cwe);
-                  end loop;
-               end;
-            when Iir_Kind_If_Statement =>
-               --  LRM08 11.3
-               --  * For each if statement, apply the rule of 10.2 to the
-               --    condition and apply this rule recursively to each
-               --    sequence of statements within the if statement, and
-               --    construct the union of the resuling sets.
-               declare
-                  El1 : Iir := Stmt;
-                  Cond : Iir;
-               begin
-                  loop
-                     Cond := Get_Condition (El1);
-                     if Cond /= Null_Iir then
-                        Canon_Extract_Sensitivity (Cond, List);
-                     end if;
-                     Canon_Extract_Sequential_Statement_Chain_Sensitivity
-                       (Get_Sequential_Statement_Chain (El1), List);
-                     El1 := Get_Else_Clause (El1);
-                     exit when El1 = Null_Iir;
-                  end loop;
-               end;
-            when Iir_Kind_Case_Statement =>
-               --  LRM08 11.3
-               --  * For each case statement, apply the rule of 10.2 to the
-               --    expression and apply this rule recursively to each
-               --    sequence of statements within the case statement, and
-               --    construct the union of the resulting sets.
-               Canon_Extract_Sensitivity (Get_Expression (Stmt), List);
-               declare
-                  Choice: Iir;
-               begin
-                  Choice := Get_Case_Statement_Alternative_Chain (Stmt);
-                  while Choice /= Null_Iir loop
-                     Canon_Extract_Sequential_Statement_Chain_Sensitivity
-                       (Get_Associated_Chain (Choice), List);
-                     Choice := Get_Chain (Choice);
-                  end loop;
-               end;
-            when Iir_Kind_While_Loop_Statement =>
-               --  LRM08 11.3
-               --  * For each loop statement, apply the rule of 10.2 to each
-               --    expression in the iteration scheme, if present, and apply
-               --    this rule recursively to the sequence of statements within
-               --    the loop statement, and construct the union of the
-               --    resulting sets.
-               Canon_Extract_Sensitivity_If_Not_Null
-                 (Get_Condition (Stmt), List);
-               Canon_Extract_Sequential_Statement_Chain_Sensitivity
-                 (Get_Sequential_Statement_Chain (Stmt), List);
-            when Iir_Kind_For_Loop_Statement =>
-               --  LRM08 11.3
-               --  See loop statement case.
-               declare
-                  It : constant Iir := Get_Parameter_Specification (Stmt);
-                  It_Type : constant Iir := Get_Type (It);
-                  Rng : constant Iir := Get_Range_Constraint (It_Type);
-               begin
-                  if Get_Kind (Rng) = Iir_Kind_Range_Expression then
-                     Canon_Extract_Sensitivity (Rng, List);
-                  end if;
-               end;
-               Canon_Extract_Sequential_Statement_Chain_Sensitivity
-                 (Get_Sequential_Statement_Chain (Stmt), List);
-            when Iir_Kind_Null_Statement =>
-               --  LRM08 11.3
-               --  ?
-               null;
-            when Iir_Kind_Procedure_Call_Statement =>
-               --  LRM08 11.3
-               --  * For each procedure call statement, apply the rule of 10.2
-               --    to each actual designator (other than OPEN) associated
-               --    with each formal parameter of mode IN or INOUT, and
-               --    construct the union of the resulting sets.
-               Canon_Extract_Sensitivity_Procedure_Call
-                 (List, Get_Procedure_Call (Stmt));
-            when others =>
-               Error_Kind
-                 ("canon_extract_sequential_statement_chain_sensitivity",
-                  Stmt);
-         end case;
+         Canon_Extract_Sensitivity_Statement (Stmt, List);
          Stmt := Get_Chain (Stmt);
       end loop;
-   end Canon_Extract_Sequential_Statement_Chain_Sensitivity;
+   end Canon_Extract_Sensitivity_Sequential_Statement_Chain;
 
    procedure Canon_Extract_Sensitivity_From_Callees
      (Callees_List : Iir_List; Sensitivity_List : Iir_List)
@@ -553,7 +564,7 @@ package body Vhdl.Canon is
 
                   --  Extract sensitivity from signals read in the body.
                   --  FIXME: what about signals read during in declarations ?
-                  Canon_Extract_Sequential_Statement_Chain_Sensitivity
+                  Canon_Extract_Sensitivity_Sequential_Statement_Chain
                     (Get_Sequential_Statement_Chain (Bod), Sensitivity_List);
 
                   --  Extract sensitivity from subprograms called.
@@ -580,7 +591,7 @@ package body Vhdl.Canon is
       end loop;
    end Canon_Extract_Sensitivity_From_Callees;
 
-   function Canon_Extract_Process_Sensitivity
+   function Canon_Extract_Sensitivity_Process
      (Proc : Iir_Sensitized_Process_Statement) return Iir_List
    is
       Res : Iir_List;
@@ -589,7 +600,7 @@ package body Vhdl.Canon is
 
       --  Signals read by statements.
       --  FIXME: justify why signals read in declarations don't care.
-      Canon_Extract_Sequential_Statement_Chain_Sensitivity
+      Canon_Extract_Sensitivity_Sequential_Statement_Chain
         (Get_Sequential_Statement_Chain (Proc), Res);
 
       --  Signals read indirectly by subprograms called.
@@ -598,57 +609,7 @@ package body Vhdl.Canon is
       Set_Seen_Flag (Proc, True);
       Clear_Seen_Flag (Proc);
       return Res;
-   end Canon_Extract_Process_Sensitivity;
-
---   function Make_Aggregate (Array_Type : Iir_Array_Type_Definition; El : Iir)
---      return Iir_Aggregate
---    is
---       Res : Iir_Aggregate;
---       Choice : Iir;
---    begin
---       Res := Create_Iir (Iir_Kind_Aggregate);
---       Location_Copy (Res, El);
---       Choice := Create_Iir (Iir_Kind_Association_Choice_By_None);
---       Set_Associated (Choice, El);
---       Append_Element (Get_Association_Choices_List (Res), Choice);
-
---       --  will call sem_aggregate
---       return Sem_Expr.Sem_Expression (Res, Array_Type);
---    end Make_Aggregate;
-
---    procedure Canon_Concatenation_Operator (Expr : Iir)
---    is
---       Array_Type : Iir_Array_Type_Definition;
---       El_Type : Iir;
---       Left, Right : Iir;
---       Func_List : Iir_Implicit_Functions_List;
---       Func : Iir_Implicit_Function_Declaration;
---    begin
---       Array_Type := Get_Type (Expr);
---       El_Type := Get_Base_Type (Get_Element_Subtype (Array_Type));
---       Left := Get_Left (Expr);
---       if Get_Type (Left) = El_Type then
---          Set_Left (Expr, Make_Aggregate (Array_Type, Left));
---       end if;
---       Right := Get_Right (Expr);
---       if Get_Type (Right) = El_Type then
---          Set_Right (Expr, Make_Aggregate (Array_Type, Right));
---       end if;
-
---       --  FIXME: must convert the implementation.
---       --  Use implicit declaration list from the array_type ?
---       Func_List := Get_Implicit_Functions_List
---         (Get_Type_Declarator (Array_Type));
---       for I in Natural loop
---          Func := Get_Nth_Element (Func_List, I);
---          if Get_Implicit_Definition (Func)
---            = Iir_Predefined_Array_Array_Concat
---          then
---             Set_Implementation (Expr, Func);
---             exit;
---          end if;
---       end loop;
---    end Canon_Concatenation_Operator;
+   end Canon_Extract_Sensitivity_Process;
 
    procedure Canon_Aggregate_Expression (Expr: Iir)
    is
@@ -727,13 +688,6 @@ package body Vhdl.Canon is
          when Iir_Kinds_Dyadic_Operator =>
             Canon_Expression (Get_Left (Expr));
             Canon_Expression (Get_Right (Expr));
-            if Get_Kind (Expr) = Iir_Kind_Concatenation_Operator
-              and then Canon_Concatenation
-              and then Is_Implicit_Subprogram (Get_Implementation (Expr))
-            then
-               --Canon_Concatenation_Operator (Expr);
-               raise Internal_Error;
-            end if;
 
          when Iir_Kind_Function_Call =>
             Canon_Subprogram_Call_And_Actuals (Expr);
@@ -850,7 +804,8 @@ package body Vhdl.Canon is
       use PSL.Nodes;
    begin
       case Get_Kind (Expr) is
-         when N_HDL_Expr =>
+         when N_HDL_Expr
+           | N_HDL_Bool =>
             Canon_Expression (Get_HDL_Node (Expr));
          when N_True | N_EOS =>
             null;
@@ -886,7 +841,7 @@ package body Vhdl.Canon is
    begin
       We := Waveform;
       while We /= Null_Iir loop
-         Canon_Extract_Sensitivity
+         Canon_Extract_Sensitivity_Expression
            (Get_We_Value (We), Sensitivity_List, False);
          We := Get_Chain (We);
       end loop;
@@ -1217,7 +1172,7 @@ package body Vhdl.Canon is
                   List := Get_Sensitivity_List (Stmt);
                   if List = Null_Iir_List and then Expr /= Null_Iir then
                      List := Create_Iir_List;
-                     Canon_Extract_Sensitivity (Expr, List, False);
+                     Canon_Extract_Sensitivity_Expression (Expr, List, False);
                      Set_Sensitivity_List (Stmt, List);
                   end if;
                end;
@@ -1345,7 +1300,8 @@ package body Vhdl.Canon is
       --      reserved word POSTPONED.
       Set_Postponed_Flag (Proc, Get_Postponed_Flag (Proc));
 
-      Canon_Extract_Sensitivity (Get_Target (Stmt), Sensitivity_List, True);
+      Canon_Extract_Sensitivity_Expression
+        (Get_Target (Stmt), Sensitivity_List, True);
 
       if Get_Guard (Stmt) /= Null_Iir then
          --  LRM93 9.1
@@ -1369,7 +1325,8 @@ package body Vhdl.Canon is
          Set_Parent (If_Stmt, Proc);
          Set_Sequential_Statement_Chain (Proc, If_Stmt);
          Location_Copy (If_Stmt, Stmt);
-         Canon_Extract_Sensitivity (Get_Guard (Stmt), Sensitivity_List, False);
+         Canon_Extract_Sensitivity_Expression
+           (Get_Guard (Stmt), Sensitivity_List, False);
          Set_Condition (If_Stmt, Get_Guard (Stmt));
          Set_Is_Ref (If_Stmt, True);
          Chain := If_Stmt;
@@ -1598,7 +1555,7 @@ package body Vhdl.Canon is
             --  Canon condition (if any).
             if Expr /= Null_Iir then
                if Proc /= Null_Iir then
-                  Canon_Extract_Sensitivity
+                  Canon_Extract_Sensitivity_Expression
                     (Expr, Get_Sensitivity_List (Proc), False);
                end if;
             end if;
@@ -1670,7 +1627,7 @@ package body Vhdl.Canon is
       Stmt : Iir;
       Waveform : Iir;
    begin
-      Canon_Extract_Sensitivity (Expr, Sensitivity_List, False);
+      Canon_Extract_Sensitivity_Expression (Expr, Sensitivity_List, False);
 
       if Vhdl_Std < Vhdl_08 then
          Case_Stmt := Create_Iir (Iir_Kind_Case_Statement);
@@ -1890,7 +1847,7 @@ package body Vhdl.Canon is
 
       -- Expand the expression, fill the sensitivity list,
       Expr := Get_Assertion_Condition (Stmt);
-      Canon_Extract_Sensitivity (Expr, Sensitivity_List, False);
+      Canon_Extract_Sensitivity_Expression (Expr, Sensitivity_List, False);
       Set_Assertion_Condition (Asrt, Expr);
       Set_Assertion_Condition (Stmt, Null_Iir);
 
@@ -1955,7 +1912,7 @@ package body Vhdl.Canon is
       Sensitivity_List := Get_Sensitivity_List (Stmt);
       if Sensitivity_List = Null_Iir_List and then Cond /= Null_Iir then
          Sensitivity_List := Create_Iir_List;
-         Canon_Extract_Sensitivity (Cond, Sensitivity_List, False);
+         Canon_Extract_Sensitivity_Expression (Cond, Sensitivity_List, False);
       end if;
       Set_Sensitivity_List (Proc, Sensitivity_List);
       Set_Is_Ref (Proc, True);
@@ -2088,7 +2045,7 @@ package body Vhdl.Canon is
               and then Get_Sensitivity_List (Stmt) = Iir_List_All
             then
                Set_Sensitivity_List
-                 (Stmt, Canon_Extract_Process_Sensitivity (Stmt));
+                 (Stmt, Canon_Extract_Sensitivity_Process (Stmt));
             end if;
 
          when Iir_Kind_Component_Instantiation_Statement =>
@@ -2122,7 +2079,7 @@ package body Vhdl.Canon is
                if Guard /= Null_Iir then
                   Expr := Get_Guard_Expression (Guard);
                   Set_Guard_Sensitivity_List (Guard, Create_Iir_List);
-                  Canon_Extract_Sensitivity
+                  Canon_Extract_Sensitivity_Expression
                     (Expr, Get_Guard_Sensitivity_List (Guard), False);
                   if Canon_Flag_Expressions then
                      Canon_Expression (Stmt);
@@ -2436,6 +2393,15 @@ package body Vhdl.Canon is
          Set_Binding_Indication (Cfg, Bind);
          Set_Is_Ref (Cfg, True);
          Add_Binding_Indication_Dependence (Top, Bind);
+         if Is_Config then
+            Entity_Aspect := Get_Entity_Aspect (Bind);
+            Entity := Get_Entity_From_Entity_Aspect (Entity_Aspect);
+            Sem_Specs.Sem_Check_Missing_Generic_Association
+              (Get_Generic_Chain (Entity),
+               Get_Generic_Map_Aspect_Chain (Bind),
+               Null_Iir,
+               Cfg);
+         end if;
          return;
       else
          Entity_Aspect := Get_Entity_Aspect (Bind);
@@ -3142,17 +3108,13 @@ package body Vhdl.Canon is
       end loop;
    end Canon_Declarations;
 
-   procedure Canon_Block_Configuration (Top : Iir_Design_Unit;
-                                        Conf : Iir_Block_Configuration)
+   --  Append for FIRST_ITEM/LAST_ITEM the default block or component
+   --  configuration for statement EL (unless there is already a configuration
+   --  for it).
+   --  Always clear the association to the configuration for the statement.
+   procedure Canon_Block_Configuration_Statement
+     (El : Iir; Blk : Iir; Parent : Iir; First_Item, Last_Item : in out Iir)
    is
-      --  use Iir_Chains.Configuration_Item_Chain_Handling;
-      Spec : constant Iir := Get_Block_Specification (Conf);
-      Blk : constant Iir := Get_Block_From_Block_Specification (Spec);
-      Stmts : constant Iir := Get_Concurrent_Statement_Chain (Blk);
-      El : Iir;
-      Sub_Blk : Iir;
-      First_Item, Last_Item : Iir;
-
       procedure Create_Default_Block_Configuration (Targ : Iir)
       is
          Res : Iir;
@@ -3160,7 +3122,7 @@ package body Vhdl.Canon is
       begin
          Res := Create_Iir (Iir_Kind_Block_Configuration);
          Location_Copy (Res, Targ);
-         Set_Parent (Res, Conf);
+         Set_Parent (Res, Parent);
          if True then
             --  For debugging.  Display as user block configuration.
             Spec := Build_Simple_Name (Targ, Targ);
@@ -3172,6 +3134,167 @@ package body Vhdl.Canon is
          Set_Block_Specification (Res, Spec);
          Chain_Append (First_Item, Last_Item, Res);
       end Create_Default_Block_Configuration;
+   begin
+      case Get_Kind (El) is
+         when Iir_Kind_Component_Instantiation_Statement =>
+            declare
+               Comp_Conf       : Iir;
+               Res             : Iir_Component_Configuration;
+               Designator_List : Iir_List;
+               Inst_List       : Iir_Flist;
+               Inst            : Iir;
+               Inst_Name       : Iir;
+            begin
+               Comp_Conf := Get_Component_Configuration (El);
+               if Comp_Conf = Null_Iir then
+                  if Is_Component_Instantiation (El) then
+                     --  Create a component configuration.
+                     --  FIXME: should merge all these default configuration
+                     --    of the same component.
+                     Res := Create_Iir (Iir_Kind_Component_Configuration);
+                     Location_Copy (Res, El);
+                     Set_Parent (Res, Parent);
+                     Set_Component_Name
+                       (Res,
+                        Build_Reference_Name (Get_Instantiated_Unit (El)));
+                     Designator_List := Create_Iir_List;
+                     Append_Element
+                       (Designator_List, Build_Simple_Name (El, El));
+                     Set_Instantiation_List
+                       (Res, List_To_Flist (Designator_List));
+                     Chain_Append (First_Item, Last_Item, Res);
+                  end if;
+               elsif Get_Kind (Comp_Conf)
+                 = Iir_Kind_Configuration_Specification
+               then
+                  --  Create component configuration
+                  Res := Create_Iir (Iir_Kind_Component_Configuration);
+                  Location_Copy (Res, Comp_Conf);
+                  Set_Parent (Res, Parent);
+                  Set_Component_Name
+                    (Res,
+                     Build_Reference_Name (Get_Component_Name (Comp_Conf)));
+                  --  Keep in the designator list only the non-incrementally
+                  --  bound instances, and only the instances in the current
+                  --  statements parts (vhdl-87 generate issue).
+                  Inst_List := Get_Instantiation_List (Comp_Conf);
+                  Designator_List := Create_Iir_List;
+                  for I in Flist_First .. Flist_Last (Inst_List) loop
+                     Inst_Name := Get_Nth_Element (Inst_List, I);
+                     Inst := Get_Named_Entity (Inst_Name);
+                     if Get_Component_Configuration (Inst) = Comp_Conf
+                       and then Get_Parent (Inst) = Blk
+                     then
+                        Set_Component_Configuration (Inst, Res);
+                        Append_Element (Designator_List,
+                                        Build_Reference_Name (Inst_Name));
+                     end if;
+                  end loop;
+                  Set_Instantiation_List
+                    (Res, List_To_Flist (Designator_List));
+                  Set_Binding_Indication
+                    (Res, Get_Binding_Indication (Comp_Conf));
+                  Set_Is_Ref (Res, True);
+                  Chain_Append (First_Item, Last_Item, Res);
+               end if;
+               Set_Component_Configuration (El, Null_Iir);
+            end;
+         when Iir_Kind_Block_Statement =>
+            if Get_Block_Block_Configuration (El) = Null_Iir then
+               Create_Default_Block_Configuration (El);
+            end if;
+         when Iir_Kind_If_Generate_Statement =>
+            declare
+               Clause     : Iir;
+               Bod        : Iir;
+               Blk_Config : Iir_Block_Configuration;
+            begin
+               Clause := El;
+               while Clause /= Null_Iir loop
+                  Bod := Get_Generate_Statement_Body (Clause);
+                  Blk_Config := Get_Generate_Block_Configuration (Bod);
+                  if Blk_Config = Null_Iir then
+                     Create_Default_Block_Configuration (Bod);
+                  end if;
+                  Set_Generate_Block_Configuration (Bod, Null_Iir);
+                  Clause := Get_Generate_Else_Clause (Clause);
+               end loop;
+            end;
+         when Iir_Kind_Case_Generate_Statement =>
+            declare
+               Alt        : Iir;
+               Bod        : Iir;
+               Blk_Config : Iir_Block_Configuration;
+            begin
+               Alt := Get_Case_Statement_Alternative_Chain (El);
+               while Alt /= Null_Iir loop
+                  if not Get_Same_Alternative_Flag (Alt) then
+                     Bod := Get_Associated_Block (Alt);
+                     Blk_Config := Get_Generate_Block_Configuration (Bod);
+                     if Blk_Config = Null_Iir then
+                        Create_Default_Block_Configuration (Bod);
+                     end if;
+                     Set_Generate_Block_Configuration (Bod, Null_Iir);
+                  end if;
+                  Alt := Get_Chain (Alt);
+               end loop;
+            end;
+         when Iir_Kind_For_Generate_Statement =>
+            declare
+               Bod        : constant Iir := Get_Generate_Statement_Body (El);
+               Blk_Config : constant Iir_Block_Configuration :=
+                 Get_Generate_Block_Configuration (Bod);
+               Res        : Iir_Block_Configuration;
+               Blk_Spec   : Iir;
+            begin
+               if Blk_Config = Null_Iir then
+                  Create_Default_Block_Configuration (Bod);
+               else
+                  Blk_Spec := Strip_Denoting_Name
+                    (Get_Block_Specification (Blk_Config));
+                  if Get_Kind (Blk_Spec) /= Iir_Kind_Generate_Statement_Body
+                  then
+                     --  There are generate specification with range or
+                     --  expression.  Create a default block configuration
+                     --  for the (possible) non-covered values.
+                     Res := Create_Iir (Iir_Kind_Block_Configuration);
+                     Location_Copy (Res, El);
+                     Set_Parent (Res, Parent);
+                     Blk_Spec := Create_Iir (Iir_Kind_Indexed_Name);
+                     Location_Copy (Blk_Spec, Res);
+                     Set_Index_List (Blk_Spec, Iir_Flist_Others);
+                     Set_Base_Name (Blk_Spec, El);
+                     Set_Prefix (Blk_Spec, Build_Simple_Name (Bod, Res));
+                     Set_Block_Specification (Res, Blk_Spec);
+                     Chain_Append (First_Item, Last_Item, Res);
+                  end if;
+               end if;
+               Set_Generate_Block_Configuration (Bod, Null_Iir);
+            end;
+
+         when Iir_Kinds_Simple_Concurrent_Statement
+            | Iir_Kind_Psl_Default_Clock
+            | Iir_Kind_Psl_Declaration
+            | Iir_Kind_Psl_Endpoint_Declaration
+            | Iir_Kind_Simple_Simultaneous_Statement =>
+            null;
+
+         when others =>
+            Error_Kind ("canon_block_configuration(3)", El);
+      end case;
+   end Canon_Block_Configuration_Statement;
+
+   procedure Canon_Block_Configuration (Top : Iir_Design_Unit;
+                                        Conf : Iir_Block_Configuration)
+   is
+      --  use Iir_Chains.Configuration_Item_Chain_Handling;
+      Spec : constant Iir := Get_Block_Specification (Conf);
+      Blk : constant Iir := Get_Block_From_Block_Specification (Spec);
+      Stmts : constant Iir := Get_Concurrent_Statement_Chain (Blk);
+      El : Iir;
+      Sub_Blk : Iir;
+      First_Item, Last_Item : Iir;
+
    begin
       --  Note: the only allowed declarations are use clauses, which are not
       --  canonicalized.
@@ -3236,149 +3359,8 @@ package body Vhdl.Canon is
       --     Add default block configuration for unconfigured block statements.
       El := Stmts;
       while El /= Null_Iir loop
-         case Get_Kind (El) is
-            when Iir_Kind_Component_Instantiation_Statement =>
-               declare
-                  Comp_Conf : Iir;
-                  Res : Iir_Component_Configuration;
-                  Designator_List : Iir_List;
-                  Inst_List : Iir_Flist;
-                  Inst : Iir;
-                  Inst_Name : Iir;
-               begin
-                  Comp_Conf := Get_Component_Configuration (El);
-                  if Comp_Conf = Null_Iir then
-                     if Is_Component_Instantiation (El) then
-                        --  Create a component configuration.
-                        --  FIXME: should merge all these default configuration
-                        --    of the same component.
-                        Res := Create_Iir (Iir_Kind_Component_Configuration);
-                        Location_Copy (Res, El);
-                        Set_Parent (Res, Conf);
-                        Set_Component_Name
-                          (Res,
-                           Build_Reference_Name (Get_Instantiated_Unit (El)));
-                        Designator_List := Create_Iir_List;
-                        Append_Element
-                          (Designator_List, Build_Simple_Name (El, El));
-                        Set_Instantiation_List
-                          (Res, List_To_Flist (Designator_List));
-                        Chain_Append (First_Item, Last_Item, Res);
-                     end if;
-                  elsif Get_Kind (Comp_Conf)
-                    = Iir_Kind_Configuration_Specification
-                  then
-                     --  Create component configuration
-                     Res := Create_Iir (Iir_Kind_Component_Configuration);
-                     Location_Copy (Res, Comp_Conf);
-                     Set_Parent (Res, Conf);
-                     Set_Component_Name
-                       (Res,
-                        Build_Reference_Name (Get_Component_Name (Comp_Conf)));
-                     --  Keep in the designator list only the non-incrementally
-                     --  bound instances, and only the instances in the current
-                     --  statements parts (vhdl-87 generate issue).
-                     Inst_List := Get_Instantiation_List (Comp_Conf);
-                     Designator_List := Create_Iir_List;
-                     for I in Flist_First .. Flist_Last (Inst_List) loop
-                        Inst_Name := Get_Nth_Element (Inst_List, I);
-                        Inst := Get_Named_Entity (Inst_Name);
-                        if Get_Component_Configuration (Inst) = Comp_Conf
-                          and then Get_Parent (Inst) = Blk
-                        then
-                           Set_Component_Configuration (Inst, Res);
-                           Append_Element (Designator_List,
-                                           Build_Reference_Name (Inst_Name));
-                        end if;
-                     end loop;
-                     Set_Instantiation_List
-                       (Res, List_To_Flist (Designator_List));
-                     Set_Binding_Indication
-                       (Res, Get_Binding_Indication (Comp_Conf));
-                     Set_Is_Ref (Res, True);
-                     Chain_Append (First_Item, Last_Item, Res);
-                  end if;
-               end;
-            when Iir_Kind_Block_Statement =>
-               if Get_Block_Block_Configuration (El) = Null_Iir then
-                  Create_Default_Block_Configuration (El);
-               end if;
-            when Iir_Kind_If_Generate_Statement =>
-               declare
-                  Clause : Iir;
-                  Bod : Iir;
-                  Blk_Config : Iir_Block_Configuration;
-               begin
-                  Clause := El;
-                  while Clause /= Null_Iir loop
-                     Bod := Get_Generate_Statement_Body (Clause);
-                     Blk_Config := Get_Generate_Block_Configuration (Bod);
-                     if Blk_Config = Null_Iir then
-                        Create_Default_Block_Configuration (Bod);
-                     end if;
-                     Clause := Get_Generate_Else_Clause (Clause);
-                  end loop;
-               end;
-            when Iir_Kind_Case_Generate_Statement =>
-               declare
-                  Alt : Iir;
-                  Bod : Iir;
-                  Blk_Config : Iir_Block_Configuration;
-               begin
-                  Alt := Get_Case_Statement_Alternative_Chain (El);
-                  while Alt /= Null_Iir loop
-                     if not Get_Same_Alternative_Flag (Alt) then
-                        Bod := Get_Associated_Block (Alt);
-                        Blk_Config := Get_Generate_Block_Configuration (Bod);
-                        if Blk_Config = Null_Iir then
-                           Create_Default_Block_Configuration (Bod);
-                        end if;
-                     end if;
-                     Alt := Get_Chain (Alt);
-                  end loop;
-               end;
-            when Iir_Kind_For_Generate_Statement =>
-               declare
-                  Bod : constant Iir := Get_Generate_Statement_Body (El);
-                  Blk_Config : constant Iir_Block_Configuration :=
-                    Get_Generate_Block_Configuration (Bod);
-                  Res : Iir_Block_Configuration;
-                  Blk_Spec : Iir;
-               begin
-                  if Blk_Config = Null_Iir then
-                     Create_Default_Block_Configuration (Bod);
-                  else
-                     Blk_Spec := Strip_Denoting_Name
-                       (Get_Block_Specification (Blk_Config));
-                     if Get_Kind (Blk_Spec) /= Iir_Kind_Generate_Statement_Body
-                     then
-                        --  There are generate specification with range or
-                        --  expression.  Create a default block configuration
-                        --  for the (possible) non-covered values.
-                        Res := Create_Iir (Iir_Kind_Block_Configuration);
-                        Location_Copy (Res, El);
-                        Set_Parent (Res, Conf);
-                        Blk_Spec := Create_Iir (Iir_Kind_Indexed_Name);
-                        Location_Copy (Blk_Spec, Res);
-                        Set_Index_List (Blk_Spec, Iir_Flist_Others);
-                        Set_Base_Name (Blk_Spec, El);
-                        Set_Prefix (Blk_Spec, Build_Simple_Name (Bod, Res));
-                        Set_Block_Specification (Res, Blk_Spec);
-                        Chain_Append (First_Item, Last_Item, Res);
-                     end if;
-                  end if;
-               end;
-
-            when Iir_Kinds_Simple_Concurrent_Statement
-              | Iir_Kind_Psl_Default_Clock
-              | Iir_Kind_Psl_Declaration
-              | Iir_Kind_Psl_Endpoint_Declaration
-              | Iir_Kind_Simple_Simultaneous_Statement =>
-               null;
-
-            when others =>
-               Error_Kind ("canon_block_configuration(3)", El);
-         end case;
+         Canon_Block_Configuration_Statement
+           (El, Blk, Conf, First_Item, Last_Item);
          El := Get_Chain (El);
       end loop;
       Set_Configuration_Item_Chain (Conf, First_Item);
@@ -3414,11 +3396,23 @@ package body Vhdl.Canon is
 
    procedure Canon_Psl_Verification_Unit (Unit : Iir_Design_Unit)
    is
-      Decl : constant Iir := Get_Library_Unit (Unit);
-      Item : Iir;
-      Prev_Item : Iir;
-      Proc_Num : Natural := 0;
+      Decl       : constant Iir := Get_Library_Unit (Unit);
+      Item       : Iir;
+      Prev_Item  : Iir;
+      Blk_Cfg    : Iir;
+      First_Conf : Iir;
+      Last_Conf  : Iir;
+      Proc_Num   : Natural := 0;
    begin
+      Blk_Cfg := Create_Iir (Iir_Kind_Block_Configuration);
+      Set_Location (Blk_Cfg, Get_Location (Unit));
+      Set_Parent (Blk_Cfg, Unit);
+      Set_Block_Specification (Blk_Cfg, Build_Simple_Name (Decl, Blk_Cfg));
+      Set_Verification_Block_Configuration (Decl, Blk_Cfg);
+
+      First_Conf := Null_Iir;
+      Last_Conf := Null_Iir;
+
       Prev_Item := Null_Iir;
       Item := Get_Vunit_Item_Chain (Decl);
       while Item /= Null_Iir loop
@@ -3434,16 +3428,23 @@ package body Vhdl.Canon is
             when Iir_Kind_Psl_Cover_Directive =>
                Canon_Psl_Cover_Directive (Item);
             when Iir_Kind_Signal_Declaration
-              | Iir_Kind_Function_Declaration
-              | Iir_Kind_Procedure_Declaration
-              | Iir_Kind_Function_Body
-              | Iir_Kind_Procedure_Body
-              | Iir_Kind_Attribute_Declaration
-              | Iir_Kind_Attribute_Specification =>
+               | Iir_Kind_Function_Declaration
+               | Iir_Kind_Procedure_Declaration
+               | Iir_Kind_Function_Body
+               | Iir_Kind_Procedure_Body
+               | Iir_Kind_Attribute_Declaration
+               | Iir_Kind_Attribute_Specification =>
                Item := Canon_Declaration (Unit, Item, Null_Iir);
-            when Iir_Kind_Concurrent_Simple_Signal_Assignment =>
+            when Iir_Kinds_Concurrent_Signal_Assignment
+               | Iir_Kinds_Process_Statement
+               | Iir_Kinds_Generate_Statement
+               | Iir_Kind_Block_Statement
+               | Iir_Kind_Concurrent_Procedure_Call_Statement
+               | Iir_Kind_Component_Instantiation_Statement =>
                Canon_Concurrent_Label (Item, Proc_Num);
                Canon_Concurrent_Statement (Item, Unit);
+               Canon_Block_Configuration_Statement
+                 (Item, Unit, Unit, First_Conf, Last_Conf);
             when others =>
                Error_Kind ("canon_psl_verification_unit", Item);
          end case;
@@ -3456,6 +3457,8 @@ package body Vhdl.Canon is
          Prev_Item := Item;
          Item := Get_Chain (Item);
       end loop;
+
+      Set_Configuration_Item_Chain (Blk_Cfg, First_Conf);
    end Canon_Psl_Verification_Unit;
 
    procedure Canonicalize (Unit: Iir_Design_Unit)

@@ -156,5 +156,13 @@ package Ghdllocal is
    --  name is incorrect.
    function Decode_Generic_Override_Option (Opt : String) return Option_State;
 
+   --  Emit a warning if an argument is not a filename (ie looks like an
+   --  option).
+   procedure Expect_Filenames (Args : Argument_List);
+
+   --  Used by --gen-makefile
+   procedure Gen_Makefile_Disp_Header;
+   procedure Gen_Makefile_Disp_Variables;
+
    procedure Register_Commands;
 end Ghdllocal;

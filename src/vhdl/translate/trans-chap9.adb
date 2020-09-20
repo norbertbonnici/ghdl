@@ -168,7 +168,7 @@ package body Trans.Chap9 is
       Mark, Mark2 : Id_Mark_Type;
       Assoc, Inter : Iir;
       Num : Iir_Int32;
-      Has_Conv_Record      : Boolean := False;
+      Has_Conv_Record : Boolean := False;
    begin
       Info := Add_Info (Inst, Kind_Block);
       Push_Identifier_Prefix (Mark, Get_Label (Inst));
@@ -338,10 +338,10 @@ package body Trans.Chap9 is
       Push_Instance_Factory (Info.Psl_Scope'Access);
 
       --  Create the state vector type.
-      Info.Psl_Vect_Type := New_Constrained_Array_Type
+      Info.Psl_Vect_Type := New_Array_Subtype
         (Std_Boolean_Array_Type,
-         New_Unsigned_Literal (Ghdl_Index_Type,
-                               Unsigned_64 (Get_PSL_Nbr_States (Stmt))));
+         Std_Boolean_Type_Node,
+         New_Index_Lit (Unsigned_64 (Get_PSL_Nbr_States (Stmt))));
       New_Type_Decl (Create_Identifier ("VECTTYPE"), Info.Psl_Vect_Type);
 
       --  Create the variables.
@@ -376,7 +376,8 @@ package body Trans.Chap9 is
       use PSL.Nodes;
    begin
       case Get_Kind (Expr) is
-         when N_HDL_Expr =>
+         when N_HDL_Bool
+           | N_HDL_Expr =>
             declare
                E     : constant Iir := Get_HDL_Node (Expr);
                Rtype : constant Iir := Get_Base_Type (Get_Type (E));
@@ -893,7 +894,7 @@ package body Trans.Chap9 is
    begin
       Push_Identifier_Prefix (Mark, Get_Identifier (Stmt));
 
-      Chap3.Translate_Object_Subtype (Param, True);
+      Chap3.Translate_Object_Subtype_Indication (Param, True);
 
       Info := Add_Info (Bod, Kind_Block);
       Chap1.Start_Block_Decl (Bod);
@@ -1381,12 +1382,14 @@ package body Trans.Chap9 is
                  | Type_Tri_State_Type
                  | Type_Iir_Pure_State
                  | Type_Iir_Delay_Mechanism
+                 | Type_Iir_Force_Mode
                  | Type_Iir_Predefined_Functions
-                 | Type_Iir_Direction
+                 | Type_Direction_Type
                  | Type_Iir_Int32
                  | Type_Int32
                  | Type_Fp64
                  | Type_Token_Type
+                 | Type_Scalar_Size
                  | Type_Name_Id =>
                   null;
             end case;
@@ -1781,7 +1784,7 @@ package body Trans.Chap9 is
       if Is_Sensitized then
          List_Orig := Get_Sensitivity_List (Proc);
          if List_Orig = Iir_List_All then
-            List := Vhdl.Canon.Canon_Extract_Process_Sensitivity (Proc);
+            List := Vhdl.Canon.Canon_Extract_Sensitivity_Process (Proc);
          else
             List := List_Orig;
          end if;
@@ -2463,7 +2466,7 @@ package body Trans.Chap9 is
       Open_Temp;
 
       --  Evaluate iterator range.
-      Chap3.Elab_Object_Subtype (Iter_Type);
+      Chap3.Elab_Object_Subtype_Indication (Iter);
 
       Range_Ptr := Create_Temp_Ptr
         (Iter_Type_Info.B.Range_Ptr_Type,
@@ -2578,7 +2581,7 @@ package body Trans.Chap9 is
       Open_Temp;
 
       --  Evaluate iterator range.
-      Chap3.Elab_Object_Subtype (Iter_Type);
+      Chap3.Elab_Object_Subtype_Indication (Iter);
 
       --  Allocate instances.
       Var_Inst := Create_Temp_Init

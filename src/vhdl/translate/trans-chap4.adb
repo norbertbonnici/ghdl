@@ -114,19 +114,16 @@ package body Trans.Chap4 is
       Info     : Object_Info_Acc;
       Tinfo    : Type_Info_Acc;
       Def      : Iir;
-      Val      : Iir;
+      Val      : constant Iir := Get_Default_Value (El);
       Storage  : O_Storage;
       Deferred : Iir;
    begin
-      Def := Get_Type (El);
-      Val := Get_Default_Value (El);
-
       --  Be sure the object type was translated.
       if Get_Kind (El) = Iir_Kind_Constant_Declaration
         and then Get_Deferred_Declaration_Flag (El) = False
         and then Get_Deferred_Declaration (El) /= Null_Iir
       then
-         --  This is a full constant declaration which complete a previous
+         --  This is a full constant declaration which completes a previous
          --  incomplete constant declaration.
          --
          --  Do not create the subtype of this full constant declaration,
@@ -137,8 +134,9 @@ package body Trans.Chap4 is
          Info := Get_Info (Deferred);
          Set_Info (El, Info);
       else
-         Chap3.Translate_Object_Subtype (El);
+         Chap3.Translate_Object_Subtype_Indication (El);
          Info := Add_Info (El, Kind_Object);
+         Def := Get_Type (El);
       end if;
 
       Tinfo := Get_Info (Def);
@@ -197,7 +195,9 @@ package body Trans.Chap4 is
       Type_Info    : Type_Info_Acc;
       Info         : Signal_Info_Acc;
    begin
-      Chap3.Translate_Object_Subtype (Decl);
+      if Get_Kind (Decl) /= Iir_Kind_Anonymous_Signal_Declaration then
+         Chap3.Translate_Object_Subtype_Indication (Decl);
+      end if;
 
       Type_Info := Get_Info (Sig_Type_Def);
       Info := Add_Info (Decl, Kind_Signal);
@@ -448,6 +448,49 @@ package body Trans.Chap4 is
       end case;
    end Init_Object;
 
+   --  Return True iff subtype indication of DECL is a subtype attribute.
+   function Is_Object_Subtype_Attribute (Decl : Iir) return Boolean
+   is
+      Ind : constant Iir := Get_Subtype_Indication (Decl);
+   begin
+      return Ind /= Null_Iir
+        and then Get_Kind (Ind) = Iir_Kind_Subtype_Attribute;
+   end Is_Object_Subtype_Attribute;
+
+   procedure Elab_Subtype_Attribute
+     (Decl : Iir; Name_Val : Mnode; Name_Sig : Mnode)
+   is
+      Ind : constant Iir := Get_Subtype_Indication (Decl);
+      Name : Mnode;
+      Bnd : Mnode;
+   begin
+      Name := Chap6.Translate_Name (Get_Prefix (Ind), Mode_Value);
+      Bnd := Chap3.Get_Composite_Bounds (Name);
+
+      if Name_Sig /= Mnode_Null then
+         Stabilize (Bnd);
+         New_Assign_Stmt (M2Lp (Chap3.Get_Composite_Bounds (Name_Sig)),
+                          M2Addr (Bnd));
+      end if;
+      New_Assign_Stmt (M2Lp (Chap3.Get_Composite_Bounds (Name_Val)),
+                       M2Addr (Bnd));
+   end Elab_Subtype_Attribute;
+
+   procedure Elab_Maybe_Subtype_Attribute
+     (Decl : Iir; Name_Val : Mnode; Name_Sig : Mnode) is
+   begin
+      case Get_Kind (Decl) is
+         when Iir_Kind_Anonymous_Signal_Declaration =>
+            return;
+         when others =>
+            if not Is_Object_Subtype_Attribute (Decl) then
+               return;
+            end if;
+      end case;
+
+      Elab_Subtype_Attribute (Decl, Name_Val, Name_Sig);
+   end Elab_Maybe_Subtype_Attribute;
+
    --  If SIZE is larger than the threshold, call __ghdl_check_stack_allocation
    --  to raise an error if the size is too large.  There are two threshold:
    --  one set at compile time (Check_Stack_Allocation_Threshold) and one set
@@ -494,8 +537,29 @@ package body Trans.Chap4 is
       Size : O_Enode;
    begin
       --  Elaborate subtype.
-      Chap3.Elab_Object_Subtype (Obj_Type);
+      case Get_Kind (Obj) is
+         when Iir_Kind_Attribute_Value =>
+            null;
+         when others =>
+            if Is_Object_Subtype_Attribute (Obj) then
+               Type_Info := Get_Info (Obj_Type);
+               if Type_Info.Type_Mode in Type_Mode_Unbounded then
+                  --  Copy bounds and allocate base.
+                  Name_Node :=
+                    Get_Var (Obj_Info.Object_Var, Type_Info, Mode_Value);
+                  Stabilize (Name_Node);
+                  Elab_Maybe_Subtype_Attribute (Obj, Name_Node, Mnode_Null);
+                  Alloc_Kind := Get_Alloc_Kind_For_Var (Obj_Info.Object_Var);
+                  Chap3.Allocate_Unbounded_Composite_Base
+                    (Alloc_Kind, Name_Node, Get_Base_Type (Obj_Type));
+               return;
+               end if;
+            else
+               Chap3.Elab_Object_Subtype_Indication (Obj);
+            end if;
+      end case;
 
+      --  Now the subtype is elaborated, its info is defined.
       Type_Info := Get_Info (Obj_Type);
 
       --  FIXME: the object type may be a fat array!
@@ -544,7 +608,9 @@ package body Trans.Chap4 is
          Init_Object (Name, Obj_Type);
          Close_Temp;
       elsif Get_Kind (Value) = Iir_Kind_Aggregate then
-         if Type_Info.Type_Mode in Type_Mode_Unbounded then
+         if Type_Info.Type_Mode in Type_Mode_Unbounded
+           and then not Is_Object_Subtype_Attribute (Obj)
+         then
             --  Allocate.
             declare
                Aggr_Type : constant Iir := Get_Type (Value);
@@ -1076,28 +1142,35 @@ package body Trans.Chap4 is
 
       Open_Temp;
 
-      Chap3.Elab_Object_Subtype (Sig_Type);
+      if Get_Kind (Decl) /= Iir_Kind_Anonymous_Signal_Declaration then
+         Chap3.Elab_Object_Subtype_Indication (Decl);
+      end if;
+
       Type_Info := Get_Info (Sig_Type);
 
       if Type_Info.Type_Mode in Type_Mode_Unbounded then
-         --  Unbounded types are only allowed for ports; in that case the
-         --  bounds have already been set.
+         --  Allocate storage.
          if Has_Copy then
             Name_Sig := Chap6.Translate_Name (Decl, Mode_Signal);
             Name_Val := Mnode_Null;
          else
             Chap6.Translate_Signal_Name (Decl, Name_Sig, Name_Val);
          end if;
+
          Name_Sig := Stabilize (Name_Sig);
+
+         if Name_Val /= Mnode_Null then
+            Name_Val := Stabilize (Name_Val);
+            Elab_Maybe_Subtype_Attribute (Decl, Name_Val, Name_Sig);
+            Chap3.Allocate_Unbounded_Composite_Base
+              (Alloc_System, Name_Val, Sig_Type);
+         else
+            Elab_Maybe_Subtype_Attribute (Decl, Name_Sig, Mnode_Null);
+         end if;
 
          Chap3.Allocate_Unbounded_Composite_Base
            (Alloc_System, Name_Sig, Sig_Type);
 
-         if Name_Val /= Mnode_Null then
-            Name_Val := Stabilize (Name_Val);
-            Chap3.Allocate_Unbounded_Composite_Base
-              (Alloc_System, Name_Val, Sig_Type);
-         end if;
          if Is_Port and then Get_Default_Value (Decl) /= Null_Iir then
             Name_Val := Chap6.Get_Port_Init_Value (Decl);
             Name_Val := Stabilize (Name_Val);
@@ -1552,18 +1625,9 @@ package body Trans.Chap4 is
    is
       Def : constant Iir := Get_Type (Decl);
       Mark  : Id_Mark_Type;
-      Parent_Type : Iir;
    begin
       Push_Identifier_Prefix (Mark, Get_Identifier (Decl));
-      Parent_Type := Get_Subtype_Type_Mark (Def);
-      if Parent_Type /= Null_Iir then
-         --  For normal user subtype declaration.
-         Parent_Type := Get_Type (Get_Named_Entity (Parent_Type));
-      else
-         --  For implicit subtype declaration of a type declaration.
-         Parent_Type := Get_Base_Type (Def);
-      end if;
-      Chap3.Translate_Subtype_Definition (Def, Parent_Type, True);
+      Chap3.Translate_Subtype_Definition (Def, True);
       Pop_Identifier_Prefix (Mark);
    end Translate_Subtype_Declaration;
 
@@ -1586,7 +1650,7 @@ package body Trans.Chap4 is
       Atype     : O_Tnode;
       Id        : Var_Ident_Type;
    begin
-      Chap3.Translate_Object_Subtype (Decl, True);
+      Chap3.Translate_Object_Subtype_Indication (Decl, True);
 
       Info := Add_Info (Decl, Kind_Alias);
       if Is_Signal_Name (Decl) then
@@ -1659,7 +1723,7 @@ package body Trans.Chap4 is
    begin
       New_Debug_Line_Stmt (Get_Line_Number (Decl));
 
-      Chap3.Elab_Object_Subtype (Decl_Type);
+      Chap3.Elab_Object_Subtype_Indication (Decl);
 
       Open_Temp;
 
@@ -1684,15 +1748,18 @@ package body Trans.Chap4 is
             A : Var_Type renames Alias_Info.Alias_Var (Mode);
             Alias_Node : Mnode;
          begin
+            --  FIXME: use subtype conversion ?
             case Tinfo.Type_Mode is
                when Type_Mode_Unbounded =>
                   Stabilize (N);
                   Alias_Node := Stabilize (Get_Var (A, Tinfo, Mode));
-                  Copy_Fat_Pointer (Alias_Node, N);
+                  Chap7.Convert_Constrained_To_Unconstrained (Alias_Node, N);
                when Type_Mode_Bounded_Arrays =>
                   Stabilize (N);
-                  New_Assign_Stmt (Get_Var (A),
-                                   M2E (Chap3.Get_Composite_Base (N)));
+                  New_Assign_Stmt
+                    (Get_Var (A),
+                     New_Convert_Ov (M2E (Chap3.Get_Composite_Base (N)),
+                                     Tinfo.Ortho_Ptr_Type (Mode)));
                   Chap3.Check_Composite_Match
                     (Decl_Type, T2M (Decl_Type, Mode),
                      Name_Type, N, Decl);
@@ -1739,7 +1806,13 @@ package body Trans.Chap4 is
             when Iir_Kinds_Interface_Object_Declaration =>
                Create_Object (Decl);
             when Iir_Kind_Interface_Package_Declaration =>
-               Create_Package_Interface (Decl);
+               if Get_Generic_Map_Aspect_Chain (Decl) = Null_Iir then
+                  --  Need a formal
+                  Create_Package_Interface (Decl);
+               else
+                  --  Instantiated.
+                  Chap2.Translate_Package_Instantiation_Declaration (Decl);
+               end if;
             when Iir_Kind_Interface_Type_Declaration
               | Iir_Kinds_Interface_Subprogram_Declaration =>
                null;
@@ -1835,8 +1908,8 @@ package body Trans.Chap4 is
             Create_File_Object (Decl);
 
          when Iir_Kind_Attribute_Declaration =>
-            --  Useless as attribute declarations have a type mark.
-            Chap3.Translate_Object_Subtype (Decl);
+            --  Attribute declarations have a type mark.
+            null;
 
          when Iir_Kind_Attribute_Specification =>
             Chap5.Translate_Attribute_Specification (Decl);
@@ -2601,7 +2674,8 @@ package body Trans.Chap4 is
                Need_Final := True;
 
             when Iir_Kind_Attribute_Declaration =>
-               Chap3.Elab_Object_Subtype (Get_Type (Decl));
+               --  An attribute declaration can only have a type mark.
+               null;
 
             when Iir_Kind_Attribute_Specification =>
                Chap5.Elab_Attribute_Specification (Decl);
@@ -2739,6 +2813,7 @@ package body Trans.Chap4 is
       Constr      : O_Assoc_List;
       Subprg_Info : Subprg_Info_Acc;
       Res         : Mnode;
+      M1          : Mnode;
       Imp         : Iir;
       Func        : Iir;
       Obj         : Iir;  --  Method object for function conversion
@@ -2901,8 +2976,9 @@ package body Trans.Chap4 is
          when Conv_Mode_Out =>
             V1 := New_Selected_Acc_Value (New_Obj (Var_Data),
                                           Conv_Info.In_Sig_Field);
-            R := M2E (Lop2M (V1, In_Info, Mode_Signal));
-            R := Chap7.Translate_Signal_Driving_Value (R, In_Type);
+            M1 := Lop2M (V1, In_Info, Mode_Signal);
+            M1 := Chap7.Translate_Signal_Driving_Value (M1, In_Type);
+            R := M2E (M1);
       end case;
 
       case Get_Kind (Imp) is

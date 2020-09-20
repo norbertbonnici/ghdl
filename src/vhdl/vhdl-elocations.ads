@@ -111,6 +111,10 @@ package Vhdl.Elocations is
    -- Iir_Kind_Attribute_Value (None)
 
    -- Iir_Kind_Psl_Expression (None)
+   -- Iir_Kind_Psl_Prev (None)
+   -- Iir_Kind_Psl_Stable (None)
+   -- Iir_Kind_Psl_Rose (None)
+   -- Iir_Kind_Psl_Fell (None)
 
    -- Iir_Kind_Signature (None)
 
@@ -404,6 +408,9 @@ package Vhdl.Elocations is
    -- Iir_Kind_Concurrent_Simple_Signal_Assignment (L1)
    --
    --   Get/Set_Start_Location (Field1)
+
+   -- Iir_Kind_Signal_Force_Assignment_Statement (None)
+   -- Iir_Kind_Signal_Release_Assignment_Statement (None)
 
    -- Iir_Kind_Sensitized_Process_Statement (L4)
    -- Iir_Kind_Process_Statement (L4)
